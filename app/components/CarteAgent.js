@@ -96,7 +96,7 @@ export function CarteAgent({ employe }) {
             <div className="badge-valeur">{(employe.fonction || '—').toUpperCase()}</div>
           </div>
           <div className="badge-sceau">
-            <img src={LOGO_SRC} alt="" className="badge-rose" />
+            <img src={LOGO_SRC} alt="" className="badge-rose" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
           </div>
         </div>
         <div className="badge-numero-carte">{numeroCartePro}</div>
@@ -109,7 +109,7 @@ export function CarteAgent({ employe }) {
         </div>
         <div className="badge-corps badge-corps-verso">
           <div className="badge-sceau badge-sceau-verso">
-            <img src={LOGO_SRC} alt="" className="badge-rose" />
+            <img src={LOGO_SRC} alt="" className="badge-rose" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
           </div>
           <div className="badge-infos badge-infos-verso">
             <div className="badge-label">Informations societe</div>
