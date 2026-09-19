@@ -113,7 +113,19 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+}
+
+/* Sur mobile, le nom du salarie (potentiellement long : "MARIN, JEAN
+   FOURNIER") pousse le groupe langue+deconnexion hors de l'ecran quand
+   tout doit tenir sur une seule ligne -- d'ou le depassement horizontal
+   observe. flex-wrap ci-dessus laisse ce groupe repasser sous la marque
+   des que ca ne rentre plus. */
+@media (max-width: 480px) {
+  .topbar-inner {
+    justify-content: center;
+  }
 }
 
 .brand {
@@ -801,7 +813,19 @@ tr:last-child td {
      ci-dessous sont calibres pour que ca tombe naturellement pres de ce
      ratio sans jamais chevaucher/tronquer, quel que soit le contenu.
      Si vous voulez retoucher les proportions, gardez chaque bloc de texte
-     largement plus bas que l'espace disponible dans .badge-corps. */
+     largement plus bas que l'espace disponible dans .badge-corps.
+
+     Toutes les tailles de police/marges ci-dessous sont exprimees en cqw
+     (pourcentage de la largeur propre de LA CARTE, via container-type)
+     plutot qu'en px fixes : sur un ecran de telephone, .badge-carte
+     retrecit (max-width:100%) mais le texte retrecissait avant en meme
+     temps mots en clair -- ce texte a taille fixe passait alors sur plus
+     de lignes, la carte grossissait en hauteur sans grossir en largeur,
+     et la photo (etiree pour occuper toute la hauteur) se retrouvait
+     ecrasee dans un cadre bien trop etroit et haut -> zoom disproportionne
+     sur le visage. Avec des unites cqw, tout (police, marges, photo)
+     retrecit proportionnellement ensemble, donc la mise en page garde les
+     memes proportions quelle que soit la largeur d'ecran. */
   background: #ffffff;
   border-radius: 12px;
   overflow: hidden;
@@ -810,27 +834,29 @@ tr:last-child td {
   box-shadow: 0 10px 30px rgba(5, 7, 10, 0.35);
   font-family: var(--font-ui);
   color: #1a212c;
+  container-type: inline-size;
 }
 
 .badge-header {
   background: #0a0f2b;
   color: #ffffff;
-  padding: 12px 22px 9px;
+  padding: 1.875cqw 3.438cqw 1.406cqw;
   text-align: center;
   flex-shrink: 0;
 }
 
 .badge-header-titre {
   font-weight: 800;
-  letter-spacing: 4px;
+  letter-spacing: 0.625cqw;
   text-transform: uppercase;
-  font-size: 19px;
+  font-size: 2.969cqw;
+  white-space: nowrap;
 }
 
 .badge-header-code {
-  margin-top: 4px;
-  font-size: 11px;
-  letter-spacing: 1.6px;
+  margin-top: 0.625cqw;
+  font-size: 1.719cqw;
+  letter-spacing: 0.25cqw;
   opacity: 0.85;
   font-weight: 600;
 }
@@ -841,8 +867,8 @@ tr:last-child td {
 }
 
 .badge-corps-verso {
-  padding: 12px 22px;
-  gap: 16px;
+  padding: 1.875cqw 3.438cqw;
+  gap: 2.5cqw;
   align-items: center;
 }
 
@@ -850,7 +876,7 @@ tr:last-child td {
   width: 25%;
   flex-shrink: 0;
   background: #dfe4ea;
-  min-height: 140px;
+  min-height: 21.875cqw;
 }
 
 .badge-photo img {
@@ -875,35 +901,35 @@ tr:last-child td {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 2px 16px;
+  padding: 0.313cqw 2.5cqw;
 }
 
 .badge-label {
   background: #dde3f7;
-  font-size: 11px;
+  font-size: 1.719cqw;
   font-weight: 800;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.078cqw;
   text-transform: uppercase;
   color: #1a212c;
-  padding: 4px 10px;
+  padding: 0.625cqw 1.563cqw;
 }
 
 .badge-valeur {
-  font-size: 15px;
+  font-size: 2.344cqw;
   font-weight: 600;
   color: #29323f;
-  padding: 4px 10px 8px;
+  padding: 0.625cqw 1.563cqw 1.25cqw;
   word-break: break-word;
 }
 
 .badge-valeur-multiligne {
-  font-size: 12px;
+  font-size: 1.875cqw;
   line-height: 1.55;
   font-weight: 500;
 }
 
 .badge-valeur-grande {
-  font-size: 19px;
+  font-size: 2.969cqw;
   font-weight: 800;
 }
 
@@ -934,10 +960,10 @@ tr:last-child td {
 .badge-numero-carte {
   background: #dde3f7;
   text-align: center;
-  font-size: 27px;
+  font-size: 4.219cqw;
   font-weight: 800;
-  letter-spacing: 3px;
-  padding: 8px 0;
+  letter-spacing: 0.469cqw;
+  padding: 1.25cqw 0;
   color: #1a212c;
   flex-shrink: 0;
 }
@@ -947,10 +973,10 @@ tr:last-child td {
   color: #0a0f2b;
   text-align: center;
   font-weight: 800;
-  letter-spacing: 6px;
+  letter-spacing: 0.938cqw;
   text-transform: uppercase;
-  padding: 10px 0;
-  font-size: 15px;
+  padding: 1.563cqw 0;
+  font-size: 2.344cqw;
   flex-shrink: 0;
 }
 
