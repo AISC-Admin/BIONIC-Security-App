@@ -15,7 +15,7 @@ export async function GET(request) {
 
   const { rows } = await sql`
     SELECT s.id, s.shift_date, s.heure_debut, s.heure_fin, s.duree_heures,
-           s.taux_horaire, s.montant, s.valide,
+           s.taux_horaire, s.montant, s.valide, s.modifie_par_manager,
            st.nom AS site, po.nom AS poste
     FROM shifts s
     JOIN sites st ON st.id = s.site_id
