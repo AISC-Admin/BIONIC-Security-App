@@ -479,12 +479,18 @@ export default function EmployeePage() {
                     <div className="list-row-sub">
                       {v.poste} &middot; {v.heure_debut}&ndash;{v.heure_fin} &middot;{' '}
                       {Number(v.duree_heures).toFixed(2)} h
-                      {v.valide && <span className="pill pill-success" style={{ marginLeft: 8 }}>{t('validated')}</span>}
+                      {v.modifie_par_manager ? (
+                        <span className="pill pill-danger" style={{ marginLeft: 8 }}>
+                          {t('modifiedByManager')}
+                        </span>
+                      ) : (
+                        v.valide && <span className="pill pill-success" style={{ marginLeft: 8 }}>{t('validated')}</span>
+                      )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div className="list-row-amount">{formatEuros(v.montant, locale)}</div>
-                    {!v.valide && (
+                    {!v.valide && !v.modifie_par_manager && (
                       <button
                         className="btn btn-ghost btn-sm"
                         onClick={() => supprimerVacation(v.id)}
