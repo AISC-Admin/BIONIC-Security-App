@@ -103,7 +103,7 @@ export default function EmployeePage() {
   const locale = LOCALES[langue] || LOCALES.fr;
 
   const chargerSession = useCallback(async () => {
-    const res = await fetch('/api/me');
+    const res = await fetch('/api/me', { cache: 'no-store' });
     if (res.ok) {
       setMoi(await res.json());
     } else {
@@ -114,6 +114,22 @@ export default function EmployeePage() {
 
   useEffect(() => {
     chargerSession();
+  }, [chargerSession]);
+
+  // Reverifie le profil (nom/prenom mais aussi carte d'agent : photo,
+  // fonction...) quand l'onglet redevient actif. Sans ca, un salarie deja
+  // connecte ne voit sa carte apparaitre qu'apres avoir rafraichi la page
+  // a la main, meme si le responsable vient de completer sa fiche.
+  useEffect(() => {
+    function surRetourFocus() {
+      if (document.visibilityState === 'visible') chargerSession();
+    }
+    window.addEventListener('focus', chargerSession);
+    document.addEventListener('visibilitychange', surRetourFocus);
+    return () => {
+      window.removeEventListener('focus', chargerSession);
+      document.removeEventListener('visibilitychange', surRetourFocus);
+    };
   }, [chargerSession]);
 
   const chargerDonnees = useCallback(async (moisCible) => {
