@@ -955,18 +955,27 @@ tr:last-child td {
 }
 
 @media print {
+  /* Isole la carte imprimable du reste de la page. `position: static`
+     sur TOUT neutralise les conteneurs positionnes (ex. .entry qui a
+     position:relative) : sans ca, le position:absolute de
+     .badge-imprimable se cale sur ce parent cache -- encore present dans
+     le flux normal via visibility:hidden -- plutot que sur la page
+     d'impression elle-meme, ce qui deformait/decalait completement le
+     rendu en PDF. */
   body * {
     visibility: hidden;
+    position: static !important;
   }
   .badge-imprimable,
   .badge-imprimable * {
     visibility: visible;
   }
   .badge-imprimable {
-    position: absolute;
+    position: absolute !important;
     top: 0;
     left: 0;
     width: 100%;
+    margin: 0;
   }
   .badge-paire {
     gap: 0;
@@ -974,6 +983,10 @@ tr:last-child td {
   .badge-carte {
     box-shadow: none;
     page-break-after: always;
+  }
+
+  @page {
+    margin: 10mm;
   }
 }
 
