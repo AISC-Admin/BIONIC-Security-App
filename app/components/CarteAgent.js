@@ -1,4 +1,7 @@
-import { CompassRose } from './Brand';
+// Logo officiel de l'entreprise (fourni par le client), utilise tel quel
+// comme sceau sur la carte d'agent -- fichier statique servi depuis
+// /public, donc present a l'identique sur la version imprimee/PDF.
+const LOGO_SRC = '/logo-rose-des-vents.png';
 
 // Coordonnees de l'entreprise affichees au verso de la carte : fixes (pas
 // de champ base de donnees), a mettre a jour ici si elles changent.
@@ -93,7 +96,7 @@ export function CarteAgent({ employe }) {
             <div className="badge-valeur">{(employe.fonction || '—').toUpperCase()}</div>
           </div>
           <div className="badge-sceau">
-            <CompassRose className="badge-rose" />
+            <img src={LOGO_SRC} alt="" className="badge-rose" />
           </div>
         </div>
         <div className="badge-numero-carte">{numeroCartePro}</div>
@@ -106,7 +109,7 @@ export function CarteAgent({ employe }) {
         </div>
         <div className="badge-corps badge-corps-verso">
           <div className="badge-sceau badge-sceau-verso">
-            <CompassRose className="badge-rose" />
+            <img src={LOGO_SRC} alt="" className="badge-rose" />
           </div>
           <div className="badge-infos badge-infos-verso">
             <div className="badge-label">Informations societe</div>
