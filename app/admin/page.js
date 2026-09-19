@@ -149,6 +149,46 @@ export default function AdminPage() {
     chargerTout();
   }
 
+  // --- Modification des horaires d'une vacation par le responsable ---
+  const [editionVacation, setEditionVacation] = useState(null);
+  const [heureDebutEdit, setHeureDebutEdit] = useState('');
+  const [heureFinEdit, setHeureFinEdit] = useState('');
+  const [modifVacationEnCours, setModifVacationEnCours] = useState(false);
+  const [erreurModifVacation, setErreurModifVacation] = useState('');
+
+  function ouvrirModifVacation(v) {
+    setEditionVacation(v.id);
+    setHeureDebutEdit(v.heure_debut);
+    setHeureFinEdit(v.heure_fin);
+    setErreurModifVacation('');
+  }
+
+  function annulerModifVacation() {
+    setEditionVacation(null);
+    setErreurModifVacation('');
+  }
+
+  async function enregistrerModifVacation(id) {
+    setModifVacationEnCours(true);
+    setErreurModifVacation('');
+    try {
+      const res = await fetch(`/api/admin/shifts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ heure_debut: heureDebutEdit, heure_fin: heureFinEdit })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setErreurModifVacation(data.erreur || 'Modification impossible.');
+        return;
+      }
+      setEditionVacation(null);
+      chargerTout();
+    } finally {
+      setModifVacationEnCours(false);
+    }
+  }
+
   async function exporterExcel(portee) {
     const url = portee === 'mois' ? `/api/admin/export?mois=${mois}` : '/api/admin/export';
     window.location.href = url;
@@ -834,7 +874,7 @@ export default function AdminPage() {
               ) : (
                 <div className="list">
                   {vacations.map((v) => (
-                    <div className="list-row" key={v.id}>
+                    <div className="list-row" key={v.id} style={{ flexWrap: 'wrap' }}>
                       <div className="list-row-main">
                         <div className="list-row-title">
                           {v.prenom ? `${v.prenom} ${v.nom}` : v.nom} &middot;{' '}
@@ -848,17 +888,63 @@ export default function AdminPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <div className="list-row-amount">{formatEuros(v.montant)}</div>
                         <span
-                          className={`pill ${v.valide ? 'pill-success' : 'pill-warning'}`}
+                          className={`pill ${v.modifie_par_manager ? 'pill-danger' : v.valide ? 'pill-success' : 'pill-warning'}`}
                           style={{ cursor: 'pointer' }}
                           onClick={() => toggleValide(v.id, !v.valide)}
-                          title="Cliquer pour changer le statut"
+                          title="Cliquer pour changer le statut de validation"
                         >
-                          {v.valide ? 'Validee' : 'En attente'}
+                          {v.modifie_par_manager ? 'Modifie' : v.valide ? 'Validee' : 'En attente'}
                         </span>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => (editionVacation === v.id ? annulerModifVacation() : ouvrirModifVacation(v))}
+                        >
+                          {editionVacation === v.id ? 'Annuler' : 'Modifier'}
+                        </button>
                         <button className="btn btn-ghost btn-sm" onClick={() => supprimerVacation(v.id)}>
                           &times;
                         </button>
                       </div>
+
+                      {editionVacation === v.id && (
+                        <div
+                          style={{
+                            width: '100%',
+                            marginTop: 10,
+                            paddingTop: 10,
+                            borderTop: '1px solid var(--border)',
+                            display: 'flex',
+                            alignItems: 'flex-end',
+                            gap: 12,
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>Debut</label>
+                            <input
+                              type="time"
+                              value={heureDebutEdit}
+                              onChange={(e) => setHeureDebutEdit(e.target.value)}
+                            />
+                          </div>
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>Fin</label>
+                            <input type="time" value={heureFinEdit} onChange={(e) => setHeureFinEdit(e.target.value)} />
+                          </div>
+                          <button
+                            className="btn btn-primary btn-sm"
+                            disabled={modifVacationEnCours}
+                            onClick={() => enregistrerModifVacation(v.id)}
+                          >
+                            {modifVacationEnCours ? 'Enregistrement...' : 'Enregistrer'}
+                          </button>
+                          {erreurModifVacation && (
+                            <div className="alert alert-error" style={{ margin: 0, padding: '6px 10px' }}>
+                              {erreurModifVacation}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
