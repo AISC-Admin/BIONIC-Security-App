@@ -34,8 +34,18 @@ const ONGLETS = [
   { id: 'sites', label: 'Sites' },
   { id: 'postes', label: 'Postes' },
   { id: 'planning', label: 'Planning' },
-  { id: 'rapport', label: 'Rapport' }
+  { id: 'rapport', label: 'Rapport' },
+  { id: 'anomalies', label: 'Anomalies' }
 ];
+
+// Libelles et styles des types d'anomalies renvoyees par
+// /api/admin/anomalies (voir ce fichier pour le detail des regles).
+const ANOMALIE_LABELS = {
+  poste_12h: 'Poste de 12h+',
+  repos_insuffisant: 'Repos < 24h',
+  depassement_151h: 'Depassement 151h/mois',
+  depassement_170h: 'Depassement 170h/mois'
+};
 
 function planEntreeVide() {
   return { date: '', site_id: '', poste_id: '', heure_debut: '', heure_fin: '', note: '' };
@@ -59,6 +69,7 @@ export default function AdminPage() {
   const [filtreEmploye, setFiltreEmploye] = useState('');
   const [filtreSite, setFiltreSite] = useState('');
   const [planning, setPlanning] = useState([]);
+  const [anomalies, setAnomalies] = useState([]);
 
   const verifierSession = useCallback(async () => {
     const res = await fetch(`/api/admin/summary?mois=${moisCourant()}`);
@@ -76,13 +87,14 @@ export default function AdminPage() {
     if (filtreEmploye) params.set('employee_id', filtreEmploye);
     if (filtreSite) params.set('site_id', filtreSite);
 
-    const [rSummary, rVac, rEmp, rSites, rPostes, rPlanning] = await Promise.all([
+    const [rSummary, rVac, rEmp, rSites, rPostes, rPlanning, rAnomalies] = await Promise.all([
       fetch(`/api/admin/summary?mois=${mois}`),
       fetch(`/api/admin/shifts?${params.toString()}`),
       fetch('/api/admin/employees'),
       fetch('/api/admin/sites'),
       fetch('/api/admin/postes'),
-      fetch(`/api/admin/planning?mois=${mois}`)
+      fetch(`/api/admin/planning?mois=${mois}`),
+      fetch(`/api/admin/anomalies?mois=${mois}`)
     ]);
     if (rSummary.ok) setSummary(await rSummary.json());
     if (rVac.ok) setVacations((await rVac.json()).vacations);
@@ -90,6 +102,7 @@ export default function AdminPage() {
     if (rSites.ok) setSites((await rSites.json()).sites);
     if (rPostes.ok) setPostes((await rPostes.json()).postes);
     if (rPlanning.ok) setPlanning((await rPlanning.json()).planning);
+    if (rAnomalies.ok) setAnomalies((await rAnomalies.json()).anomalies);
   }, [mois, filtreEmploye, filtreSite]);
 
   useEffect(() => {
@@ -675,6 +688,11 @@ export default function AdminPage() {
                 onClick={() => setOnglet(o.id)}
               >
                 {o.label}
+                {o.id === 'anomalies' && anomalies.length > 0 && (
+                  <span className="pill pill-danger" style={{ marginLeft: 6 }}>
+                    {anomalies.length}
+                  </span>
+                )}
               </div>
             ))}
           </div>
@@ -1259,6 +1277,39 @@ export default function AdminPage() {
                     </tr>
                   </tfoot>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {onglet === 'anomalies' && (
+          <div className="card">
+            <div className="card-title">Anomalies &mdash; infractions au droit du travail ({libelleMois(mois)})</div>
+            <div className="small muted" style={{ marginBottom: 14 }}>
+              Detection automatique sur les vacations enregistrees ce mois-ci : poste de 12h ou plus d&apos;affilee,
+              repos de moins de 24h apres un tel poste, et depassement des seuils mensuels de 151h et 170h.
+            </div>
+
+            {anomalies.length === 0 && <div className="empty-state">Aucune anomalie detectee ce mois-ci.</div>}
+
+            {anomalies.length > 0 && (
+              <div className="list">
+                {anomalies.map((a, idx) => (
+                  <div className="list-row" key={idx}>
+                    <div className="list-row-main">
+                      <div className="list-row-title">
+                        {a.nom}
+                        <span
+                          className={`pill ${a.gravite === 'critique' ? 'pill-danger' : 'pill-warning'}`}
+                          style={{ marginLeft: 8 }}
+                        >
+                          {ANOMALIE_LABELS[a.type] || a.type}
+                        </span>
+                      </div>
+                      <div className="list-row-sub">{a.message}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
