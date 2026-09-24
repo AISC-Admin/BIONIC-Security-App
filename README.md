@@ -88,6 +88,27 @@ appel a l'application : aucune commande SQL a lancer a la main.
 5. Partagez le lien principal `https://<votre-projet>.vercel.app` a vos
    salaries : c'est l'ecran de connexion nom + code.
 
+## Base salaries (photos + CV)
+
+L'onglet **Base salaries** de l'espace responsable est un vivier de profils,
+independant des comptes de pointage (aucun code de connexion a creer) :
+photo, CV, nom, prenom, date de naissance, telephone, email, numero de
+carte pro, taille, poids, ville, pays, taux horaire, poste, et cases
+"Disponible ete" / "Disponible hiver" (l'une, l'autre ou les deux).
+Recherche et filtres par disponibilite et par poste.
+
+Les photos et CV (PDF ou Word, 10 Mo max.) sont stockes dans **Vercel
+Blob** en acces **prive** : ils ne sont visibles que par le responsable
+connecte. Mise en place, une seule fois :
+
+1. Projet Vercel > **Storage** > **Create Storage** > **Blob**.
+2. Choisissez l'acces **Private**, nommez le store (ex. `bionic-fichiers`)
+   et connectez-le au projet pour **Production** et **Preview**.
+3. Vercel ajoute les variables `BLOB_READ_WRITE_TOKEN` (indispensable pour
+   l'envoi depuis le navigateur) et `BLOB_STORE_ID`. Redeployez.
+
+La table `staff_profiles` est creee automatiquement au premier appel.
+
 ## Fonctionnement
 
 - **Cote salarie** : connexion nom + code, ajout d'une vacation (site,
@@ -149,5 +170,6 @@ app/
 lib/
   db.js                 connexion Postgres + creation du schema
   auth.js               sessions (cookies signes)
+  baseSalaries.js       validation des fiches + fichiers Vercel Blob
   excel.js               generation du classeur Excel
 ```

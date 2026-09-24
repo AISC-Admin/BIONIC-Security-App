@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Brand } from '../components/Brand';
 import { CarteAgent } from '../components/CarteAgent';
+import { BaseSalaries } from '../components/BaseSalaries';
 
 const MOIS_LABELS = [
   'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -31,6 +32,7 @@ function formatEuros(valeur) {
 const ONGLETS = [
   { id: 'vacations', label: 'Vacations' },
   { id: 'employees', label: 'Salaries' },
+  { id: 'base', label: 'Base salaries' },
   { id: 'sites', label: 'Sites' },
   { id: 'postes', label: 'Postes' },
   { id: 'planning', label: 'Planning' },
@@ -738,6 +740,8 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {onglet !== 'base' && (
+        <>
         <div className="flex-between">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button className="btn btn-secondary btn-sm" onClick={() => setMois((m) => decalerMois(m, -1))}>
@@ -776,6 +780,8 @@ export default function AdminPage() {
             <div className="stat-value">{summary?.parEmploye?.length || 0}</div>
           </div>
         </div>
+        </>
+        )}
 
         {onglet === 'vacations' && (
           <>
@@ -952,6 +958,8 @@ export default function AdminPage() {
             </div>
           </>
         )}
+
+        {onglet === 'base' && <BaseSalaries postes={postes} />}
 
         {onglet === 'employees' && (
           <div className="card">
