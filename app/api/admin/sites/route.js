@@ -6,7 +6,7 @@ export async function GET() {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ erreur: 'Acces refuse.' }, { status: 403 });
   await ensureSchema();
-  const { rows } = await sql`SELECT id, nom, actif FROM sites ORDER BY nom;`;
+  const { rows } = await sql`SELECT id, nom, actif FROM sites WHERE supprime = false ORDER BY nom;`;
   return NextResponse.json({ sites: rows });
 }
 
@@ -16,6 +16,13 @@ export async function POST(request) {
   await ensureSchema();
   const { nom } = await request.json();
   if (!nom) return NextResponse.json({ erreur: 'Nom du site requis.' }, { status: 400 });
+
+  const { rows: archives } = await sql`
+    UPDATE sites SET supprime = false, actif = true
+    WHERE lower(nom) = lower(${nom.trim()}) AND supprime = true
+    RETURNING id, nom, actif;
+  `;
+  if (archives[0]) return NextResponse.json({ site: archives[0] });
 
   try {
     const { rows } = await sql`

@@ -545,8 +545,13 @@ export default function AdminPage() {
     });
     chargerTout();
   }
-  async function supprimerSite(id) {
-    await fetch(`/api/admin/sites/${id}`, { method: 'DELETE' });
+  async function supprimerSite(id, nom) {
+    if (!window.confirm(`Supprimer le site "${nom}" ?\n\nLes vacations deja enregistrees sur ce site sont conservees.`)) return;
+    const res = await fetch(`/api/admin/sites/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      window.alert(data.erreur || 'Suppression impossible.');
+    }
     chargerTout();
   }
 
@@ -574,8 +579,13 @@ export default function AdminPage() {
     });
     chargerTout();
   }
-  async function supprimerPoste(id) {
-    await fetch(`/api/admin/postes/${id}`, { method: 'DELETE' });
+  async function supprimerPoste(id, nom) {
+    if (!window.confirm(`Supprimer le poste "${nom}" ?\n\nLes vacations deja enregistrees avec ce poste sont conservees.`)) return;
+    const res = await fetch(`/api/admin/postes/${id}`, { method: 'DELETE' });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      window.alert(data.erreur || 'Suppression impossible.');
+    }
     chargerTout();
   }
 
@@ -1435,7 +1445,7 @@ export default function AdminPage() {
                     <button className="btn btn-secondary btn-sm" onClick={() => toggleSiteActif(s.id, !s.actif)}>
                       {s.actif ? 'Desactiver' : 'Activer'}
                     </button>
-                    <button className="btn btn-danger btn-sm" onClick={() => supprimerSite(s.id)}>
+                    <button className="btn btn-danger btn-sm" onClick={() => supprimerSite(s.id, s.nom)}>
                       Supprimer
                     </button>
                   </div>
@@ -1487,7 +1497,7 @@ export default function AdminPage() {
                     >
                       {p.actif ? 'Desactiver' : 'Activer'}
                     </button>
-                    <button className="btn btn-danger btn-sm" onClick={() => supprimerPoste(p.id)}>
+                    <button className="btn btn-danger btn-sm" onClick={() => supprimerPoste(p.id, p.nom)}>
                       Supprimer
                     </button>
                   </div>

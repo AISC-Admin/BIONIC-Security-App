@@ -27,10 +27,10 @@ export async function DELETE(request, { params }) {
   try {
     await sql`DELETE FROM postes WHERE id = ${id};`;
   } catch {
-    return NextResponse.json(
-      { erreur: 'Ce poste a deja des vacations enregistrees : desactivez-le plutot que de le supprimer.' },
-      { status: 409 }
-    );
+    // Deja utilise par des vacations ou un planning : suppression
+    // impossible sans perdre l'historique, on le masque a la place.
+    await sql`UPDATE postes SET supprime = true, actif = false WHERE id = ${id};`;
+    return NextResponse.json({ ok: true, archive: true });
   }
   return NextResponse.json({ ok: true });
 }

@@ -12,8 +12,8 @@ export async function GET() {
   await ensureSchema();
 
   const [sites, postes] = await Promise.all([
-    sql`SELECT id, nom FROM sites WHERE actif = true ORDER BY nom;`,
-    sql`SELECT id, nom, taux_horaire FROM postes WHERE actif = true ORDER BY nom;`
+    sql`SELECT id, nom FROM sites WHERE actif = true AND supprime = false ORDER BY nom;`,
+    sql`SELECT id, nom, taux_horaire FROM postes WHERE actif = true AND supprime = false ORDER BY nom;`
   ]);
 
   return NextResponse.json({ sites: sites.rows, postes: postes.rows });
