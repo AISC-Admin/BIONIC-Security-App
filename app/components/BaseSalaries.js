@@ -4,11 +4,34 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { upload } from '@vercel/blob/client';
 
 // Onglet "Base salaries" de l'espace responsable : vivier de profils
-// (photo, CV, coordonnees, mensurations, disponibilites saisonnieres),
+// (photo, CV, passeport, IBAN, coordonnees, mensurations, disponibilites saisonnieres),
 // independant des comptes de pointage. Photo et CV sont envoyes
 // directement du navigateur vers le store Vercel Blob prive.
 
 const URL_UPLOAD = '/api/admin/base-salaries/upload';
+
+// Documents joints a une fiche (meme fonctionnement pour chacun).
+const DOCUMENTS = [
+  {
+    cle: 'cv',
+    dossier: 'cv',
+    libelle: 'CV',
+    aide: 'PDF ou Word, 10 Mo max.',
+    accept:
+      '.pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  },
+  {
+    cle: 'passeport',
+    dossier: 'passeports',
+    libelle: 'Passeport',
+    aide: 'PDF ou photo, 10 Mo max.',
+    accept: '.pdf,.jpg,.jpeg,.png,.webp,.heic,application/pdf,image/*'
+  }
+];
+
+function formatIban(iban) {
+  return (iban || '').replace(/\s+/g, '').toUpperCase().replace(/(.{4})/g, '$1 ').trim();
+}
 
 function ficheVide() {
   return {
@@ -19,6 +42,8 @@ function ficheVide() {
     email: '',
     carte_pro_numero: '',
     num_secu: '',
+    iban: '',
+    bic: '',
     taille_cm: '',
     poids_kg: '',
     ville: '',
@@ -29,7 +54,9 @@ function ficheVide() {
     dispo_hiver: false,
     photo_pathname: null,
     cv_pathname: null,
-    cv_nom_fichier: null
+    cv_nom_fichier: null,
+    passeport_pathname: null,
+    passeport_nom_fichier: null
   };
 }
 
@@ -121,13 +148,13 @@ export function BaseSalaries({ postes = [] }) {
   const [fiche, setFiche] = useState(ficheVide());
   const [photoNouvelle, setPhotoNouvelle] = useState(null); // Blob JPEG
   const [photoApercu, setPhotoApercu] = useState(null); // object URL
-  const [cvNouveau, setCvNouveau] = useState(null); // File
+  const [docsNouveaux, setDocsNouveaux] = useState({}); // { cv: File, passeport: File }
   const [enregistrement, setEnregistrement] = useState(false);
   const [etape, setEtape] = useState('');
   const [erreur, setErreur] = useState('');
   const [message, setMessage] = useState('');
   const inputPhoto = useRef(null);
-  const inputCv = useRef(null);
+  const inputsDocs = useRef({});
 
   const charger = useCallback(async () => {
     const res = await fetch('/api/admin/base-salaries');
@@ -168,9 +195,9 @@ export function BaseSalaries({ postes = [] }) {
   function reinitialiserFichiers() {
     setPhotoNouvelle(null);
     setPhotoApercu(null);
-    setCvNouveau(null);
+    setDocsNouveaux({});
     if (inputPhoto.current) inputPhoto.current.value = '';
-    if (inputCv.current) inputCv.current.value = '';
+    Object.values(inputsDocs.current).forEach((el) => el && (el.value = ''));
   }
 
   function ouvrirNouvelle() {
@@ -191,7 +218,10 @@ export function BaseSalaries({ postes = [] }) {
       dispo_hiver: Boolean(p.dispo_hiver),
       photo_pathname: p.photo_pathname || null,
       cv_pathname: p.cv_pathname || null,
-      cv_nom_fichier: p.cv_nom_fichier || null
+      cv_nom_fichier: p.cv_nom_fichier || null,
+      passeport_pathname: p.passeport_pathname || null,
+      passeport_nom_fichier: p.passeport_nom_fichier || null,
+      iban: formatIban(p.iban)
     });
     reinitialiserFichiers();
     setErreur('');
@@ -229,21 +259,21 @@ export function BaseSalaries({ postes = [] }) {
     maj('photo_pathname', null);
   }
 
-  function choisirCv(fichier) {
+  function choisirDocument(doc, fichier) {
     if (!fichier) return;
     if (fichier.size > 10 * 1024 * 1024) {
-      setErreur('Le CV depasse 10 Mo.');
-      if (inputCv.current) inputCv.current.value = '';
+      setErreur(`Le fichier ${doc.libelle} depasse 10 Mo.`);
+      if (inputsDocs.current[doc.cle]) inputsDocs.current[doc.cle].value = '';
       return;
     }
     setErreur('');
-    setCvNouveau(fichier);
+    setDocsNouveaux((d) => ({ ...d, [doc.cle]: fichier }));
   }
 
-  function retirerCv() {
-    setCvNouveau(null);
-    if (inputCv.current) inputCv.current.value = '';
-    setFiche((f) => ({ ...f, cv_pathname: null, cv_nom_fichier: null }));
+  function retirerDocument(doc) {
+    setDocsNouveaux((d) => ({ ...d, [doc.cle]: null }));
+    if (inputsDocs.current[doc.cle]) inputsDocs.current[doc.cle].value = '';
+    setFiche((f) => ({ ...f, [`${doc.cle}_pathname`]: null, [`${doc.cle}_nom_fichier`]: null }));
   }
 
   async function enregistrer(e) {
@@ -264,16 +294,18 @@ export function BaseSalaries({ postes = [] }) {
         });
         corps.photo_pathname = res.pathname;
       }
-      if (cvNouveau) {
-        setEtape('Envoi du CV...');
-        const ext = (cvNouveau.name.split('.').pop() || 'pdf').toLowerCase();
-        const res = await upload(`base-salaries/cv/${base}.${ext}`, cvNouveau, {
+      for (const doc of DOCUMENTS) {
+        const fichier = docsNouveaux[doc.cle];
+        if (!fichier) continue;
+        setEtape(`Envoi : ${doc.libelle}...`);
+        const ext = (fichier.name.split('.').pop() || 'pdf').toLowerCase();
+        const res = await upload(`base-salaries/${doc.dossier}/${base}.${ext}`, fichier, {
           access: 'private',
           handleUploadUrl: URL_UPLOAD,
-          contentType: cvNouveau.type || undefined
+          contentType: fichier.type || undefined
         });
-        corps.cv_pathname = res.pathname;
-        corps.cv_nom_fichier = cvNouveau.name;
+        corps[`${doc.cle}_pathname`] = res.pathname;
+        corps[`${doc.cle}_nom_fichier`] = fichier.name;
       }
 
       setEtape('Enregistrement de la fiche...');
@@ -305,7 +337,7 @@ export function BaseSalaries({ postes = [] }) {
 
   async function supprimer(p) {
     const libelle = p.prenom ? `${p.prenom} ${p.nom}` : p.nom;
-    if (!window.confirm(`Supprimer definitivement la fiche de ${libelle} (avec sa photo et son CV) ?`)) return;
+    if (!window.confirm(`Supprimer definitivement la fiche de ${libelle} (avec sa photo, son CV et son passeport) ?`)) return;
     await fetch(`/api/admin/base-salaries/${p.id}`, { method: 'DELETE' });
     if (editionId === p.id) fermerForm();
     charger();
@@ -425,6 +457,32 @@ export function BaseSalaries({ postes = [] }) {
             </div>
 
             <div className="row">
+              <div className="field" style={{ flex: 2 }}>
+                <label>IBAN</label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Ex. FR76 3000 6000 0112 3456 7890 189"
+                  value={fiche.iban}
+                  onChange={(e) => maj('iban', e.target.value.toUpperCase())}
+                  onBlur={(e) => maj('iban', formatIban(e.target.value))}
+                />
+              </div>
+              <div className="field">
+                <label>BIC / SWIFT</label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="Ex. BNPAFRPPXXX"
+                  value={fiche.bic}
+                  onChange={(e) => maj('bic', e.target.value.toUpperCase())}
+                />
+              </div>
+            </div>
+
+            <div className="row">
               <div className="field">
                 <label>Ville</label>
                 <input type="text" value={fiche.ville} onChange={(e) => maj('ville', e.target.value)} />
@@ -505,36 +563,46 @@ export function BaseSalaries({ postes = [] }) {
               </div>
             </div>
 
-            <div className="field">
-              <label>CV (PDF ou Word, 10 Mo max.)</label>
-              <div className="bs-cv">
-                <input
-                  ref={inputCv}
-                  type="file"
-                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  style={{ display: 'none' }}
-                  onChange={(e) => choisirCv(e.target.files?.[0])}
-                />
-                <button className="btn btn-secondary btn-sm" type="button" onClick={() => inputCv.current?.click()}>
-                  {cvNouveau || fiche.cv_pathname ? 'Remplacer le CV' : 'Ajouter un CV'}
-                </button>
-                {cvNouveau && <span className="small">{cvNouveau.name} (sera envoye a l&apos;enregistrement)</span>}
-                {!cvNouveau && fiche.cv_pathname && (
-                  <a
-                    className="small"
-                    href={urlFichier(fiche.cv_pathname, { nom: fiche.cv_nom_fichier })}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {fiche.cv_nom_fichier || 'Voir le CV'}
-                  </a>
-                )}
-                {(cvNouveau || fiche.cv_pathname) && (
-                  <button className="btn btn-ghost btn-sm" type="button" onClick={retirerCv}>
-                    Retirer
-                  </button>
-                )}
-              </div>
+            <div className="row">
+              {DOCUMENTS.map((doc) => {
+                const nouveau = docsNouveaux[doc.cle];
+                const chemin = fiche[`${doc.cle}_pathname`];
+                const nomFichier = fiche[`${doc.cle}_nom_fichier`];
+                return (
+                  <div className="field" key={doc.cle}>
+                    <label>
+                      {doc.libelle} ({doc.aide})
+                    </label>
+                    <div className="bs-cv">
+                      <input
+                        ref={(el) => (inputsDocs.current[doc.cle] = el)}
+                        type="file"
+                        accept={doc.accept}
+                        style={{ display: 'none' }}
+                        onChange={(e) => choisirDocument(doc, e.target.files?.[0])}
+                      />
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        type="button"
+                        onClick={() => inputsDocs.current[doc.cle]?.click()}
+                      >
+                        {nouveau || chemin ? 'Remplacer' : `Ajouter : ${doc.libelle}`}
+                      </button>
+                      {nouveau && <span className="small">{nouveau.name} (envoye a l&apos;enregistrement)</span>}
+                      {!nouveau && chemin && (
+                        <a className="small" href={urlFichier(chemin, { nom: nomFichier })} target="_blank" rel="noreferrer">
+                          {nomFichier || `Voir : ${doc.libelle}`}
+                        </a>
+                      )}
+                      {(nouveau || chemin) && (
+                        <button className="btn btn-ghost btn-sm" type="button" onClick={() => retirerDocument(doc)}>
+                          Retirer
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             <div className="row" style={{ alignItems: 'center' }}>
@@ -647,16 +715,17 @@ export function BaseSalaries({ postes = [] }) {
                     </div>
                   </div>
                   <div className="bs-actions">
-                    {p.cv_pathname && (
+                    {DOCUMENTS.filter((doc) => p[`${doc.cle}_pathname`]).map((doc) => (
                       <a
+                        key={doc.cle}
                         className="btn btn-secondary btn-sm"
-                        href={urlFichier(p.cv_pathname, { nom: p.cv_nom_fichier })}
+                        href={urlFichier(p[`${doc.cle}_pathname`], { nom: p[`${doc.cle}_nom_fichier`] })}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        CV
+                        {doc.libelle}
                       </a>
-                    )}
+                    ))}
                     <button className="btn btn-ghost btn-sm" onClick={() => ouvrirEdition(p)}>
                       Modifier
                     </button>

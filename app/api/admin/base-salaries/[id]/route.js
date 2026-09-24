@@ -5,7 +5,7 @@ import { validerFiche, supprimerFichiers } from '@/lib/baseSalaries';
 
 async function lireFichiers(id) {
   const { rows } = await sql`
-    SELECT photo_pathname, cv_pathname FROM staff_profiles WHERE id = ${id};
+    SELECT photo_pathname, cv_pathname, passeport_pathname FROM staff_profiles WHERE id = ${id};
   `;
   return rows[0] || null;
 }
@@ -28,18 +28,21 @@ export async function PUT(request, { params }) {
     UPDATE staff_profiles SET
       nom = ${v.nom}, prenom = ${v.prenom}, date_naissance = ${v.date_naissance},
       telephone = ${v.telephone}, email = ${v.email}, carte_pro_numero = ${v.carte_pro_numero},
-      num_secu = ${v.num_secu},
+      num_secu = ${v.num_secu}, iban = ${v.iban}, bic = ${v.bic},
       taille_cm = ${v.taille_cm}, poids_kg = ${v.poids_kg}, ville = ${v.ville}, pays = ${v.pays},
       taux_horaire = ${v.taux_horaire}, poste = ${v.poste},
       dispo_ete = ${v.dispo_ete}, dispo_hiver = ${v.dispo_hiver},
       photo_pathname = ${v.photo_pathname}, cv_pathname = ${v.cv_pathname},
-      cv_nom_fichier = ${v.cv_nom_fichier}, updated_at = now()
+      cv_nom_fichier = ${v.cv_nom_fichier},
+      passeport_pathname = ${v.passeport_pathname}, passeport_nom_fichier = ${v.passeport_nom_fichier},
+      updated_at = now()
     WHERE id = ${id};
   `;
 
   await supprimerFichiers([
     avant.photo_pathname !== v.photo_pathname ? avant.photo_pathname : null,
-    avant.cv_pathname !== v.cv_pathname ? avant.cv_pathname : null
+    avant.cv_pathname !== v.cv_pathname ? avant.cv_pathname : null,
+    avant.passeport_pathname !== v.passeport_pathname ? avant.passeport_pathname : null
   ]);
   return NextResponse.json({ ok: true });
 }
@@ -53,6 +56,6 @@ export async function DELETE(request, { params }) {
   const avant = await lireFichiers(id);
   if (!avant) return NextResponse.json({ ok: true });
   await sql`DELETE FROM staff_profiles WHERE id = ${id};`;
-  await supprimerFichiers([avant.photo_pathname, avant.cv_pathname]);
+  await supprimerFichiers([avant.photo_pathname, avant.cv_pathname, avant.passeport_pathname]);
   return NextResponse.json({ ok: true });
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { handleUpload } from '@vercel/blob/client';
 import { requireAdminSession } from '@/lib/auth';
-import { PREFIXE_BLOB, TYPES_PHOTO, TYPES_CV, TAILLE_MAX_FICHIER } from '@/lib/baseSalaries';
+import { PREFIXE_BLOB, TYPES_PHOTO, TYPES_CV, TYPES_PASSEPORT, TAILLE_MAX_FICHIER } from '@/lib/baseSalaries';
 
 // Envoi direct navigateur -> Vercel Blob ("client upload") : le fichier ne
 // transite pas par la fonction serverless, ce qui evite la limite de 4,5 Mo
@@ -19,6 +19,7 @@ export async function POST(request) {
         let types;
         if (pathname.startsWith(`${PREFIXE_BLOB}photos/`)) types = TYPES_PHOTO;
         else if (pathname.startsWith(`${PREFIXE_BLOB}cv/`)) types = TYPES_CV;
+        else if (pathname.startsWith(`${PREFIXE_BLOB}passeports/`)) types = TYPES_PASSEPORT;
         else throw new Error('Chemin de fichier non autorise.');
         return {
           allowedContentTypes: types,
