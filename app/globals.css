@@ -1132,6 +1132,12 @@ input[type='tel'] {
   color: var(--blue-600);
 }
 
+@media (max-width: 480px) {
+  .bs-vide {
+    display: none;
+  }
+}
+
 @media (max-width: 640px) {
   .bs-form-top {
     flex-direction: column;

@@ -18,6 +18,7 @@ function ficheVide() {
     telephone: '',
     email: '',
     carte_pro_numero: '',
+    num_secu: '',
     taille_cm: '',
     poids_kg: '',
     ville: '',
@@ -158,7 +159,7 @@ export function BaseSalaries({ postes = [] }) {
       if (filtreDispo === 'les-deux' && !(p.dispo_ete && p.dispo_hiver)) return false;
       if (filtrePoste && p.poste !== filtrePoste) return false;
       if (!q) return true;
-      return [p.nom, p.prenom, p.ville, p.pays, p.email, p.telephone, p.carte_pro_numero, p.poste]
+      return [p.nom, p.prenom, p.ville, p.pays, p.email, p.telephone, p.carte_pro_numero, p.num_secu, p.poste]
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
@@ -407,6 +408,19 @@ export function BaseSalaries({ postes = [] }) {
                     <input type="email" value={fiche.email} onChange={(e) => maj('email', e.target.value)} />
                   </div>
                 </div>
+                <div className="row">
+                  <div className="field">
+                    <label>N° de securite sociale</label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Ex. 1 88 02 83 137 042 17"
+                      value={fiche.num_secu}
+                      onChange={(e) => maj('num_secu', e.target.value)}
+                    />
+                  </div>
+                  <div className="field bs-vide" />
+                </div>
               </div>
             </div>
 
@@ -625,7 +639,8 @@ export function BaseSalaries({ postes = [] }) {
                         p.date_naissance && `Ne(e) le ${formatDateFr(p.date_naissance)}${age != null ? ` (${age} ans)` : ''}`,
                         p.taille_cm && `${p.taille_cm} cm`,
                         p.poids_kg && `${Number(p.poids_kg)} kg`,
-                        p.carte_pro_numero && `Carte pro ${p.carte_pro_numero}`
+                        p.carte_pro_numero && `Carte pro ${p.carte_pro_numero}`,
+                        p.num_secu && `N° secu ${p.num_secu}`
                       ]
                         .filter(Boolean)
                         .join(' · ')}

@@ -12,7 +12,7 @@ export async function GET() {
   const { rows } = await sql`
     SELECT id, nom, prenom,
            to_char(date_naissance, 'YYYY-MM-DD') AS date_naissance,
-           telephone, email, carte_pro_numero, taille_cm, poids_kg, ville, pays,
+           telephone, email, carte_pro_numero, num_secu, taille_cm, poids_kg, ville, pays,
            taux_horaire, poste, dispo_ete, dispo_hiver,
            photo_pathname, cv_pathname, cv_nom_fichier, created_at, updated_at
     FROM staff_profiles
@@ -33,11 +33,11 @@ export async function POST(request) {
 
   const { rows } = await sql`
     INSERT INTO staff_profiles (
-      nom, prenom, date_naissance, telephone, email, carte_pro_numero,
+      nom, prenom, date_naissance, telephone, email, carte_pro_numero, num_secu,
       taille_cm, poids_kg, ville, pays, taux_horaire, poste,
       dispo_ete, dispo_hiver, photo_pathname, cv_pathname, cv_nom_fichier
     ) VALUES (
-      ${v.nom}, ${v.prenom}, ${v.date_naissance}, ${v.telephone}, ${v.email}, ${v.carte_pro_numero},
+      ${v.nom}, ${v.prenom}, ${v.date_naissance}, ${v.telephone}, ${v.email}, ${v.carte_pro_numero}, ${v.num_secu},
       ${v.taille_cm}, ${v.poids_kg}, ${v.ville}, ${v.pays}, ${v.taux_horaire}, ${v.poste},
       ${v.dispo_ete}, ${v.dispo_hiver}, ${v.photo_pathname}, ${v.cv_pathname}, ${v.cv_nom_fichier}
     )

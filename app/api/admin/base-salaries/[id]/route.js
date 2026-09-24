@@ -28,6 +28,7 @@ export async function PUT(request, { params }) {
     UPDATE staff_profiles SET
       nom = ${v.nom}, prenom = ${v.prenom}, date_naissance = ${v.date_naissance},
       telephone = ${v.telephone}, email = ${v.email}, carte_pro_numero = ${v.carte_pro_numero},
+      num_secu = ${v.num_secu},
       taille_cm = ${v.taille_cm}, poids_kg = ${v.poids_kg}, ville = ${v.ville}, pays = ${v.pays},
       taux_horaire = ${v.taux_horaire}, poste = ${v.poste},
       dispo_ete = ${v.dispo_ete}, dispo_hiver = ${v.dispo_hiver},
