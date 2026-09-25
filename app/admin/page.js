@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Brand } from '../components/Brand';
 import { CarteAgent } from '../components/CarteAgent';
 import { BaseSalaries } from '../components/BaseSalaries';
+import { PlanningSite } from '../components/PlanningSite';
 
 const MOIS_LABELS = [
   'Janvier', 'Fevrier', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -590,6 +591,9 @@ export default function AdminPage() {
   }
 
   // --- Planning (envoi previsionnel aux salaries) ---
+  // Deux vues : 'agents' (envoi direct a des salaries) et 'site' (creneaux
+  // a pourvoir sur un site, attribues ensuite agent par agent).
+  const [vuePlanning, setVuePlanning] = useState('agents');
   const [planEmployeIds, setPlanEmployeIds] = useState([]);
   const [planEntrees, setPlanEntrees] = useState([planEntreeVide()]);
   const [planEnvoiEnCours, setPlanEnvoiEnCours] = useState(false);
@@ -1508,6 +1512,24 @@ export default function AdminPage() {
         )}
 
         {onglet === 'planning' && (
+          <div className="tabs">
+            <div
+              className={`tab ${vuePlanning === 'agents' ? 'active' : ''}`}
+              onClick={() => setVuePlanning('agents')}
+            >
+              Planning agents
+            </div>
+            <div className={`tab ${vuePlanning === 'site' ? 'active' : ''}`} onClick={() => setVuePlanning('site')}>
+              Planning site
+            </div>
+          </div>
+        )}
+
+        {onglet === 'planning' && vuePlanning === 'site' && (
+          <PlanningSite sites={sites} postes={postes} employees={employees} mois={mois} onChange={chargerTout} />
+        )}
+
+        {onglet === 'planning' && vuePlanning === 'agents' && (
           <>
             <div className="card">
               <div className="card-title">Envoyer un planning</div>
