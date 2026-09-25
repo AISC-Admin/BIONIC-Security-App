@@ -1348,3 +1348,20 @@ input[type='tel'] {
   color: var(--text-muted);
   font-weight: 500;
 }
+
+/* --- Planning salarie : marquer un creneau comme effectue --- */
+
+.plan-effectuer {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.plan-effectuer select {
+  width: auto;
+  max-width: 170px;
+  padding: 7px 30px 7px 10px;
+  font-size: 13px;
+}

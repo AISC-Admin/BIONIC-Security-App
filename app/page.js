@@ -78,6 +78,9 @@ export default function EmployeePage() {
   const [gains, setGains] = useState(null);
   const [vacations, setVacations] = useState([]);
   const [planning, setPlanning] = useState([]);
+  const [planPoste, setPlanPoste] = useState({}); // poste choisi pour un creneau sans poste
+  const [planEnCours, setPlanEnCours] = useState(null);
+  const [planErreur, setPlanErreur] = useState(null);
   const [options, setOptions] = useState({ sites: [], postes: [] });
 
   // --- formulaire de saisie ---
@@ -148,6 +151,35 @@ export default function EmployeePage() {
   useEffect(() => {
     if (moi) chargerDonnees(mois);
   }, [moi, mois, chargerDonnees]);
+
+  // Transforme un creneau du planning en vacation effectuee (comptee dans
+  // les gains, en attente de validation par le responsable).
+  async function marquerEffectuee(p) {
+    setPlanErreur(null);
+    if (!p.poste_id && !planPoste[p.id]) {
+      setPlanErreur({ id: p.id, texte: t('planningPosteRequired') });
+      return;
+    }
+    setPlanEnCours(p.id);
+    try {
+      const res = await fetch(`/api/me/planning/${p.id}/effectuee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ posteId: planPoste[p.id] || null })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPlanErreur({
+          id: p.id,
+          texte: data.code === 'poste_requis' ? t('planningPosteRequired') : data.erreur || 'Erreur'
+        });
+        return;
+      }
+      await chargerDonnees(mois);
+    } finally {
+      setPlanEnCours(null);
+    }
+  }
 
   async function connexion(e) {
     e.preventDefault();
@@ -342,7 +374,39 @@ export default function EmployeePage() {
                       {p.heure_debut}&ndash;{p.heure_fin}
                       {p.note && ` · ${p.note}`}
                     </div>
+                    {planErreur?.id === p.id && (
+                      <div className="small" style={{ color: 'var(--danger)', marginTop: 4 }}>
+                        {planErreur.texte}
+                      </div>
+                    )}
                   </div>
+                  {p.shift_id ? (
+                    <span className="pill pill-success">{t('planningDone')} &#10003;</span>
+                  ) : p.passe ? (
+                    <div className="plan-effectuer">
+                      {!p.poste_id && (
+                        <select
+                          aria-label={t('planningPoste')}
+                          value={planPoste[p.id] || ''}
+                          onChange={(e) => setPlanPoste((c) => ({ ...c, [p.id]: e.target.value }))}
+                        >
+                          <option value="">{t('planningPoste')}</option>
+                          {(options?.postes || []).map((po) => (
+                            <option key={po.id} value={po.id}>
+                              {po.nom}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        disabled={planEnCours === p.id}
+                        onClick={() => marquerEffectuee(p)}
+                      >
+                        {t('planningMarkDone')}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

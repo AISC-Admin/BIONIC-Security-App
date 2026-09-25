@@ -670,6 +670,33 @@ export default function AdminPage() {
     chargerTout();
   }
 
+  // --- Transformer des creneaux du planning en vacations executees ---
+  const [execEnCours, setExecEnCours] = useState(false);
+  const [execPoste, setExecPoste] = useState({}); // poste choisi par salarie pour les creneaux sans poste
+
+  async function executerCreneaux(ids, employeeId, libelle) {
+    if (ids.length === 0) return;
+    if (ids.length > 1 && !window.confirm(`Marquer ${ids.length} creneau(x) comme executes pour ${libelle} ?\n\nIls deviennent des vacations validees (heures et montants comptes).`)) return;
+    setExecEnCours(true);
+    try {
+      const res = await fetch('/api/admin/planning/executer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, posteId: execPoste[employeeId] || null })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) window.alert(data.erreur || 'Operation impossible.');
+      else if (data.sansPoste) {
+        window.alert(
+          `${data.executes} creneau(x) executes. ${data.sansPoste} creneau(x) sans poste n'ont pas pu etre transformes : choisissez un poste dans la liste a cote du bouton puis recommencez.`
+        );
+      }
+      chargerTout();
+    } finally {
+      setExecEnCours(false);
+    }
+  }
+
   // Regroupe la liste plate `planning` (deja triee par salarie/date cote API) par salarie.
   function planningParEmploye() {
     const groupes = new Map();
@@ -1696,6 +1723,39 @@ export default function AdminPage() {
                       <div style={{ fontWeight: 600 }}>
                         {groupe.prenom ? `${groupe.prenom} ${groupe.nom}` : groupe.nom}
                       </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {groupe.entrees.some((p) => !p.shift_id && !p.poste_id) && (
+                        <select
+                          style={{ width: 'auto', padding: '6px 30px 6px 10px', fontSize: 13 }}
+                          title="Poste a utiliser pour les creneaux sans poste"
+                          value={execPoste[groupe.employeeId] || ''}
+                          onChange={(e) => setExecPoste((c) => ({ ...c, [groupe.employeeId]: e.target.value }))}
+                        >
+                          <option value="">Poste (creneaux sans poste)</option>
+                          {postes
+                            .filter((po) => po.actif)
+                            .map((po) => (
+                              <option key={po.id} value={po.id}>
+                                {po.nom}
+                              </option>
+                            ))}
+                        </select>
+                      )}
+                      {groupe.entrees.some((p) => !p.shift_id && p.passe) && (
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          disabled={execEnCours}
+                          onClick={() =>
+                            executerCreneaux(
+                              groupe.entrees.filter((p) => !p.shift_id && p.passe).map((p) => p.id),
+                              groupe.employeeId,
+                              groupe.prenom ? `${groupe.prenom} ${groupe.nom}` : groupe.nom
+                            )
+                          }
+                        >
+                          Tout executer (jours passes)
+                        </button>
+                      )}
                       <button
                         className="btn btn-danger btn-sm"
                         onClick={() =>
@@ -1707,6 +1767,7 @@ export default function AdminPage() {
                       >
                         Effacer tout
                       </button>
+                      </div>
                     </div>
                     <div className="list">
                       {groupe.entrees.map((p) => (
@@ -1726,6 +1787,24 @@ export default function AdminPage() {
                               {p.note && ` · ${p.note}`}
                             </div>
                           </div>
+                          {p.shift_id ? (
+                            <span className="pill pill-success">Executee &#10003;</span>
+                          ) : (
+                            <button
+                              className="btn btn-secondary btn-sm"
+                              disabled={execEnCours}
+                              title="Transformer ce creneau en vacation executee (validee)"
+                              onClick={() =>
+                                executerCreneaux(
+                                  [p.id],
+                                  groupe.employeeId,
+                                  groupe.prenom ? `${groupe.prenom} ${groupe.nom}` : groupe.nom
+                                )
+                              }
+                            >
+                              Executee
+                            </button>
+                          )}
                           <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => supprimerPlanEntree(p.id)}

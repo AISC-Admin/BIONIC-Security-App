@@ -15,7 +15,9 @@ export async function GET(request) {
   const { rows } = await sql`
     SELECT p.id, p.employee_id, e.nom, e.prenom,
            to_char(p.planning_date, 'YYYY-MM-DD') AS planning_date,
-           p.heure_debut, p.heure_fin, p.note,
+           p.heure_debut, p.heure_fin, p.note, p.poste_id,
+           (SELECT sh.id FROM shifts sh WHERE sh.planning_entry_id = p.id LIMIT 1) AS shift_id,
+           (p.planning_date <= (now() AT TIME ZONE 'Europe/Paris')::date) AS passe,
            st.nom AS site, po.nom AS poste
     FROM planning_entries p
     JOIN employees e ON e.id = p.employee_id
