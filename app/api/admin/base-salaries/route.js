@@ -15,7 +15,9 @@ export async function GET() {
            telephone, email, carte_pro_numero, num_secu, iban, bic, taille_cm, poids_kg, ville, pays,
            taux_horaire, poste, dispo_ete, dispo_hiver,
            photo_pathname, cv_pathname, cv_nom_fichier,
-           passeport_pathname, passeport_nom_fichier, created_at, updated_at
+           passeport_pathname, passeport_nom_fichier, employee_id,
+           (SELECT e.actif FROM employees e WHERE e.id = staff_profiles.employee_id) AS employe_actif,
+           created_at, updated_at
     FROM staff_profiles
     ORDER BY nom, prenom;
   `;

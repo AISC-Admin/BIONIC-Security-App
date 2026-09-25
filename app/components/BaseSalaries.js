@@ -136,7 +136,7 @@ function preparerPhoto(fichier) {
   });
 }
 
-export function BaseSalaries({ postes = [] }) {
+export function BaseSalaries({ postes = [], onEmbauche }) {
   const [profils, setProfils] = useState([]);
   const [chargement, setChargement] = useState(true);
   const [recherche, setRecherche] = useState('');
@@ -153,6 +153,10 @@ export function BaseSalaries({ postes = [] }) {
   const [etape, setEtape] = useState('');
   const [erreur, setErreur] = useState('');
   const [message, setMessage] = useState('');
+  // Passage d'une fiche en salarie effectif (compte de pointage).
+  const [embauche, setEmbauche] = useState(null); // { id, code, dateEntree, taux }
+  const [embaucheEnCours, setEmbaucheEnCours] = useState(false);
+  const [embaucheErreur, setEmbaucheErreur] = useState('');
   const inputPhoto = useRef(null);
   const inputsDocs = useRef({});
 
@@ -332,6 +336,56 @@ export function BaseSalaries({ postes = [] }) {
     } finally {
       setEnregistrement(false);
       setEtape('');
+    }
+  }
+
+  function ouvrirEmbauche(p) {
+    const d = new Date();
+    const auj = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    setEmbaucheErreur('');
+    setEmbauche({ id: p.id, code: '', dateEntree: auj, taux: p.taux_horaire != null ? String(Number(p.taux_horaire)) : '' });
+  }
+
+  async function confirmerEmbauche(p, lierExistant = false) {
+    setEmbaucheErreur('');
+    if (!lierExistant && embauche.code.trim().length < 4) {
+      setEmbaucheErreur('Choisissez un code de connexion (4 caracteres minimum).');
+      return;
+    }
+    setEmbaucheEnCours(true);
+    try {
+      const res = await fetch(`/api/admin/base-salaries/${p.id}/embaucher`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: embauche.code,
+          dateEntree: embauche.dateEntree,
+          tauxHoraire: embauche.taux,
+          lierExistant
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.existant) {
+        if (window.confirm(`${data.erreur}\n\nRattacher cette fiche a ce salarie existant (sans creer de doublon) ?`)) {
+          await confirmerEmbauche(p, true);
+        }
+        return;
+      }
+      if (!res.ok) {
+        setEmbaucheErreur(data.erreur || 'Operation impossible.');
+        return;
+      }
+      const libelle = p.prenom ? `${p.prenom} ${p.nom}` : p.nom;
+      setMessage(
+        data.lie
+          ? `${libelle} est rattache(e) au salarie existant.`
+          : `${libelle} est maintenant salarie(e) : il/elle se connecte avec le nom "${p.nom}" et le code choisi.`
+      );
+      setEmbauche(null);
+      charger();
+      onEmbauche?.();
+    } finally {
+      setEmbaucheEnCours(false);
     }
   }
 
@@ -667,7 +721,8 @@ export function BaseSalaries({ postes = [] }) {
               const age = calculerAge(p.date_naissance);
               const libelle = p.prenom ? `${p.prenom} ${p.nom}` : p.nom;
               return (
-                <div className="list-row bs-row" key={p.id}>
+                <div key={p.id}>
+                <div className="list-row bs-row">
                   <div className="bs-photo">
                     {p.photo_pathname ? (
                       <img src={urlFichier(p.photo_pathname)} alt="" loading="lazy" />
@@ -726,6 +781,18 @@ export function BaseSalaries({ postes = [] }) {
                         {doc.libelle}
                       </a>
                     ))}
+                    {p.employee_id ? (
+                      <span className="pill pill-success" style={{ alignSelf: 'center' }}>
+                        {p.employe_actif === false ? 'Salarie (inactif)' : 'Salarie effectif'}
+                      </span>
+                    ) : (
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => (embauche?.id === p.id ? setEmbauche(null) : ouvrirEmbauche(p))}
+                      >
+                        Passer en salarie
+                      </button>
+                    )}
                     <button className="btn btn-ghost btn-sm" onClick={() => ouvrirEdition(p)}>
                       Modifier
                     </button>
@@ -733,6 +800,59 @@ export function BaseSalaries({ postes = [] }) {
                       Supprimer
                     </button>
                   </div>
+                </div>
+                {embauche?.id === p.id && (
+                  <div className="bs-embauche">
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Passer {libelle} en salarie effectif</div>
+                    <div className="small muted" style={{ marginBottom: 12 }}>
+                      Un compte de pointage est cree avec son nom, prenom, date de naissance, carte pro, poste, taux et
+                      photo. Il/elle se connectera avec le nom &laquo; {p.nom} &raquo; et le code ci-dessous.
+                    </div>
+                    {embaucheErreur && <div className="alert alert-error">{embaucheErreur}</div>}
+                    <div className="row">
+                      <div className="field">
+                        <label>Code de connexion (4 car. min.)</label>
+                        <input
+                          type="text"
+                          autoComplete="off"
+                          value={embauche.code}
+                          onChange={(e) => setEmbauche((x) => ({ ...x, code: e.target.value }))}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Date d&apos;entree</label>
+                        <input
+                          type="date"
+                          value={embauche.dateEntree}
+                          onChange={(e) => setEmbauche((x) => ({ ...x, dateEntree: e.target.value }))}
+                        />
+                      </div>
+                      <div className="field">
+                        <label>Taux horaire perso (optionnel)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Taux du poste par defaut"
+                          value={embauche.taux}
+                          onChange={(e) => setEmbauche((x) => ({ ...x, taux: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        disabled={embaucheEnCours}
+                        onClick={() => confirmerEmbauche(p)}
+                      >
+                        {embaucheEnCours ? 'Creation...' : 'Creer le compte salarie'}
+                      </button>
+                      <button className="btn btn-ghost btn-sm" onClick={() => setEmbauche(null)}>
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                )}
                 </div>
               );
             })}

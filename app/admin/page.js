@@ -1000,7 +1000,7 @@ export default function AdminPage() {
           </>
         )}
 
-        {onglet === 'base' && <BaseSalaries postes={postes} />}
+        {onglet === 'base' && <BaseSalaries postes={postes} onEmbauche={chargerTout} />}
 
         {onglet === 'employees' && (
           <div className="card">

@@ -1365,3 +1365,12 @@ input[type='tel'] {
   padding: 7px 30px 7px 10px;
   font-size: 13px;
 }
+
+.bs-embauche {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--blue-500);
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 0 0 14px;
+}
