@@ -101,6 +101,8 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
   const [modeSelection, setModeSelection] = useState(false);
   const [selection, setSelection] = useState(() => new Set());
   const [menuSuppr, setMenuSuppr] = useState(null); // id du creneau dont le menu "supprimer" est ouvert
+  const [edition, setEdition] = useState(null); // { id, posteId, heureDebut, heureFin, note } du creneau en modification
+  const [erreurEdition, setErreurEdition] = useState('');
 
   // Quand on change de mois avec les fleches du haut, on se place sur la
   // premiere semaine de ce mois (ou la semaine en cours si c'est ce mois-ci).
@@ -212,6 +214,60 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
         const data = await res.json().catch(() => ({}));
         window.alert(data.erreur || 'Attribution impossible.');
       }
+      await charger();
+      onChange?.();
+    } finally {
+      setEnCours(null);
+    }
+  }
+
+  function ouvrirEdition(c) {
+    setMenuSuppr(null);
+    setErreurEdition('');
+    setEdition({
+      id: c.id,
+      posteId: c.poste_id ? String(c.poste_id) : '',
+      heureDebut: c.heure_debut,
+      heureFin: c.heure_fin,
+      note: c.note || ''
+    });
+  }
+
+  function majEdition(champ, valeur) {
+    setEdition((ed) => ({ ...ed, [champ]: valeur }));
+  }
+
+  async function enregistrerEdition(e, forcer = false) {
+    e?.preventDefault();
+    if (!edition) return;
+    setEnCours(edition.id);
+    setErreurEdition('');
+    try {
+      const { id, ...modification } = edition;
+      const res = await fetch(`/api/admin/site-planning/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ modification, forcer })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 409 && data.conflit) {
+        if (window.confirm(`${data.erreur}\n\nEnregistrer quand meme ?`)) await enregistrerEdition(null, true);
+        return;
+      }
+      if (!res.ok) {
+        setErreurEdition(data.erreur || 'Modification impossible.');
+        return;
+      }
+      setEdition(null);
+      setMessage(
+        data.dejaEffectue
+          ? {
+              type: 'success',
+              texte:
+                "Creneau modifie. Attention : il etait deja marque comme effectue, la vacation deja enregistree n'a pas change (a corriger dans l'onglet Vacations si besoin)."
+            }
+          : { type: 'success', texte: 'Creneau modifie.' }
+      );
       await charger();
       onChange?.();
     } finally {
@@ -569,10 +625,23 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
                         </span>
                         {!modeSelection && (
                           <button
+                            className="ps-modif"
+                            type="button"
+                            title="Modifier le creneau (poste, horaires, note)"
+                            onClick={() => (edition?.id === c.id ? setEdition(null) : ouvrirEdition(c))}
+                          >
+                            &#9998;
+                          </button>
+                        )}
+                        {!modeSelection && (
+                          <button
                             className="ps-suppr"
                             type="button"
                             title="Supprimer..."
-                            onClick={() => setMenuSuppr((m) => (m === c.id ? null : c.id))}
+                            onClick={() => {
+                              setEdition(null);
+                              setMenuSuppr((m) => (m === c.id ? null : c.id));
+                            }}
                           >
                             &times;
                           </button>
@@ -597,6 +666,47 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
                             Annuler
                           </button>
                         </div>
+                      )}
+                      {edition?.id === c.id && !modeSelection && (
+                        <form className="ps-edition" onSubmit={enregistrerEdition}>
+                          <label>Poste</label>
+                          <select value={edition.posteId} onChange={(e) => majEdition('posteId', e.target.value)}>
+                            <option value="">-</option>
+                            {postesActifs.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.nom}
+                              </option>
+                            ))}
+                            {edition.posteId && !postesActifs.some((p) => String(p.id) === edition.posteId) && (
+                              <option value={edition.posteId}>{c.poste || 'Poste actuel'}</option>
+                            )}
+                          </select>
+                          <label>Debut</label>
+                          <input
+                            type="time"
+                            value={edition.heureDebut}
+                            onChange={(e) => majEdition('heureDebut', e.target.value)}
+                            required
+                          />
+                          <label>Fin</label>
+                          <input
+                            type="time"
+                            value={edition.heureFin}
+                            onChange={(e) => majEdition('heureFin', e.target.value)}
+                            required
+                          />
+                          <label>Note</label>
+                          <input type="text" value={edition.note} onChange={(e) => majEdition('note', e.target.value)} />
+                          {erreurEdition && <div className="ps-edition-erreur">{erreurEdition}</div>}
+                          <div className="ps-edition-actions">
+                            <button className="btn btn-primary btn-sm" type="submit" disabled={enCours === c.id}>
+                              {enCours === c.id ? '...' : 'Enregistrer'}
+                            </button>
+                            <button className="btn btn-ghost btn-sm" type="button" onClick={() => setEdition(null)}>
+                              Annuler
+                            </button>
+                          </div>
+                        </form>
                       )}
                       {(c.poste || c.note) && (
                         <div className="ps-info">{[c.poste, c.note].filter(Boolean).join(' · ')}</div>

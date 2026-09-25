@@ -1266,6 +1266,63 @@ input[type='tel'] {
   color: var(--danger);
 }
 
+.ps-modif {
+  border: none;
+  background: none;
+  color: var(--text-faint);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: auto;
+}
+
+.ps-modif:hover {
+  color: var(--blue-500);
+}
+
+.ps-creneau-tete .ps-modif + .ps-suppr {
+  margin-left: 0;
+}
+
+.ps-edition {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px;
+}
+
+.ps-edition label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.ps-edition input {
+  padding: 5px 6px;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.ps-edition-erreur {
+  font-size: 11.5px;
+  color: var(--danger);
+  line-height: 1.3;
+}
+
+.ps-edition-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
 .ps-agent {
   font-size: 12.5px;
   font-weight: 700;
