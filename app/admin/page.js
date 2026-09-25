@@ -112,6 +112,23 @@ export default function AdminPage() {
     if (connecte) chargerTout();
   }, [connecte, chargerTout]);
 
+  // Mise a jour automatique : a chaque retour sur l'onglet Vacations, puis
+  // toutes les 60 s tant qu'il est affiche (pointages des salaries, planning
+  // modifie ailleurs...), et quand on revient sur la fenetre du navigateur.
+  useEffect(() => {
+    if (!connecte || onglet !== 'vacations') return;
+    chargerTout();
+    const minuterie = setInterval(() => {
+      if (document.visibilityState === 'visible') chargerTout();
+    }, 60000);
+    const auRetour = () => document.visibilityState === 'visible' && chargerTout();
+    document.addEventListener('visibilitychange', auRetour);
+    return () => {
+      clearInterval(minuterie);
+      document.removeEventListener('visibilitychange', auRetour);
+    };
+  }, [connecte, onglet, chargerTout]);
+
   async function connexion(e) {
     e.preventDefault();
     setErreurConnexion('');
@@ -847,14 +864,20 @@ export default function AdminPage() {
           <div className="stat">
             <div className="stat-label">Heures ({libelleMois(mois)})</div>
             <div className="stat-value">{(summary?.totalGeneral?.heures || 0).toFixed(1)} h</div>
+            {summary?.totalGeneral?.heuresPrevues > 0 && (
+              <div className="small muted">dont {summary.totalGeneral.heuresPrevues.toFixed(1)} h prevues</div>
+            )}
           </div>
           <div className="stat">
             <div className="stat-label">Montant total</div>
             <div className="stat-value accent">{formatEuros(summary?.totalGeneral?.montant)}</div>
+            {summary?.totalGeneral?.montantPrevu > 0 && (
+              <div className="small muted">dont {formatEuros(summary.totalGeneral.montantPrevu)} prevus</div>
+            )}
           </div>
           <div className="stat">
             <div className="stat-label">Salaries actifs</div>
-            <div className="stat-value">{summary?.parEmploye?.length || 0}</div>
+            <div className="stat-value">{summary?.nbSalariesActifs ?? summary?.parEmploye?.length ?? 0}</div>
           </div>
         </div>
         </>
@@ -864,6 +887,10 @@ export default function AdminPage() {
           <>
             <div className="card">
               <div className="card-title">Recap par salarie</div>
+              <div className="small muted" style={{ marginBottom: 10 }}>
+                Vacations effectuees + creneaux prevus au planning (planning agents et planning site) pas encore
+                effectues. Le montant prevu est estime avec le taux du salarie ou, a defaut, celui du poste.
+              </div>
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -878,9 +905,27 @@ export default function AdminPage() {
                     {(summary?.parEmploye || []).map((e) => (
                       <tr key={e.employeeId}>
                         <td>{e.prenom ? `${e.prenom} ${e.nom}` : e.nom}</td>
-                        <td>{e.nbVacations}</td>
-                        <td>{e.totalHeures.toFixed(2)} h</td>
-                        <td>{formatEuros(e.totalMontant)}</td>
+                        <td>
+                          {e.nbVacations}
+                          {e.nbPrevues > 0 && <div className="small muted">dont {e.nbPrevues} prevue(s)</div>}
+                        </td>
+                        <td>
+                          {e.totalHeures.toFixed(2)} h
+                          {e.heuresPrevues > 0 && (
+                            <div className="small muted">dont {e.heuresPrevues.toFixed(2)} h prevues</div>
+                          )}
+                        </td>
+                        <td>
+                          {formatEuros(e.totalMontant)}
+                          {e.montantPrevu > 0 && (
+                            <div className="small muted">dont {formatEuros(e.montantPrevu)} prevus</div>
+                          )}
+                          {e.sansTaux > 0 && (
+                            <div className="small" style={{ color: 'var(--danger)' }}>
+                              {e.sansTaux} creneau(x) sans poste ni taux : montant non compte
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -891,7 +936,7 @@ export default function AdminPage() {
             <div className="card">
               <div className="card-title">Recap par site</div>
               {(summary?.parSite || []).length === 0 ? (
-                <div className="empty-state">Aucune vacation enregistree ce mois-ci.</div>
+                <div className="empty-state">Aucune vacation ni creneau planifie ce mois-ci.</div>
               ) : (
                 (summary?.parSite || []).map((site) => (
                   <div key={site.siteId} style={{ marginBottom: 18 }}>
@@ -915,8 +960,18 @@ export default function AdminPage() {
                           {site.parEmploye.map((e) => (
                             <tr key={e.employeeId}>
                               <td>{e.prenom ? `${e.prenom} ${e.nom}` : e.nom}</td>
-                              <td>{e.totalHeures.toFixed(2)} h</td>
-                              <td>{formatEuros(e.totalMontant)}</td>
+                              <td>
+                                {e.totalHeures.toFixed(2)} h
+                                {e.heuresPrevues > 0 && (
+                                  <div className="small muted">dont {e.heuresPrevues.toFixed(2)} h prevues</div>
+                                )}
+                              </td>
+                              <td>
+                                {formatEuros(e.totalMontant)}
+                                {e.montantPrevu > 0 && (
+                                  <div className="small muted">dont {formatEuros(e.montantPrevu)} prevus</div>
+                                )}
+                              </td>
                             </tr>
                           ))}
                         </tbody>

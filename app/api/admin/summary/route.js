@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
-import { sql, ensureSchema } from '@/lib/db';
+import { sql, ensureSchema, calculerDureeHeures } from '@/lib/db';
 import { requireAdminSession } from '@/lib/auth';
 
 // GET /api/admin/summary?mois=YYYY-MM
-// Totaux par salarie pour le mois, utilises par les cartes du tableau de bord.
+// Totaux du mois par salarie et par site. Deux sources sont additionnees :
+// - les vacations enregistrees (table shifts : pointages des salaries et
+//   creneaux deja marques comme effectues) -> "effectue" ;
+// - les creneaux du planning (planning agents + planning site attribue)
+//   pas encore transformes en vacation -> "prevu". Leur montant est estime
+//   avec le taux personnel du salarie, sinon celui du poste.
+// Un creneau deja effectue n'est compte qu'une fois (via sa vacation).
 export async function GET(request) {
   const session = await requireAdminSession();
   if (!session) return NextResponse.json({ erreur: 'Acces refuse.' }, { status: 403 });
@@ -12,81 +18,125 @@ export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const mois = searchParams.get('mois') || new Date().toISOString().slice(0, 7);
 
-  const { rows } = await sql`
-    SELECT e.id AS employee_id, e.nom, e.prenom,
-           COALESCE(SUM(s.duree_heures), 0) AS total_heures,
-           COALESCE(SUM(s.montant), 0) AS total_montant,
-           COUNT(s.id) AS nb_vacations
-    FROM employees e
-    LEFT JOIN shifts s
-      ON s.employee_id = e.id AND to_char(s.shift_date, 'YYYY-MM') = ${mois}
-    WHERE e.actif = true
-    GROUP BY e.id, e.nom, e.prenom
-    ORDER BY e.nom, e.prenom;
-  `;
+  const [{ rows: employes }, { rows: effectues }, { rows: prevus }] = await Promise.all([
+    sql`
+      SELECT id, nom, prenom, actif FROM employees ORDER BY nom, prenom;
+    `,
+    sql`
+      SELECT s.employee_id, s.site_id, st.nom AS site_nom,
+             COUNT(s.id)::int AS nb,
+             COALESCE(SUM(s.duree_heures), 0) AS heures,
+             COALESCE(SUM(s.montant), 0) AS montant
+      FROM shifts s
+      JOIN sites st ON st.id = s.site_id
+      WHERE to_char(s.shift_date, 'YYYY-MM') = ${mois}
+      GROUP BY s.employee_id, s.site_id, st.nom;
+    `,
+    sql`
+      SELECT p.employee_id, p.site_id, st.nom AS site_nom,
+             p.heure_debut, p.heure_fin,
+             e.taux_horaire AS taux_perso, po.taux_horaire AS taux_poste
+      FROM planning_entries p
+      JOIN sites st ON st.id = p.site_id
+      JOIN employees e ON e.id = p.employee_id
+      LEFT JOIN postes po ON po.id = p.poste_id
+      WHERE to_char(p.planning_date, 'YYYY-MM') = ${mois}
+        AND NOT EXISTS (SELECT 1 FROM shifts sh WHERE sh.planning_entry_id = p.id);
+    `
+  ]);
 
-  const totalGeneral = rows.reduce(
+  const vide = () => ({ nb: 0, heures: 0, montant: 0, nbPrevus: 0, heuresPrevues: 0, montantPrevu: 0, sansTaux: 0 });
+  const parEmp = new Map(); // employee_id -> totaux
+  const parSiteEmp = new Map(); // site_id -> { nom, emp: Map(employee_id -> totaux) }
+
+  function cellule(employeeId, siteId, siteNom) {
+    if (!parEmp.has(employeeId)) parEmp.set(employeeId, vide());
+    if (!parSiteEmp.has(siteId)) parSiteEmp.set(siteId, { nom: siteNom, emp: new Map() });
+    const site = parSiteEmp.get(siteId);
+    if (!site.emp.has(employeeId)) site.emp.set(employeeId, vide());
+    return [parEmp.get(employeeId), site.emp.get(employeeId)];
+  }
+
+  for (const r of effectues) {
+    for (const t of cellule(r.employee_id, r.site_id, r.site_nom)) {
+      t.nb += r.nb;
+      t.heures += Number(r.heures);
+      t.montant += Number(r.montant);
+    }
+  }
+
+  for (const r of prevus) {
+    const duree = calculerDureeHeures(r.heure_debut, r.heure_fin);
+    const taux = r.taux_perso != null ? Number(r.taux_perso) : r.taux_poste != null ? Number(r.taux_poste) : null;
+    const montant = taux != null ? Math.round(duree * taux * 100) / 100 : 0;
+    for (const t of cellule(r.employee_id, r.site_id, r.site_nom)) {
+      t.nbPrevus += 1;
+      t.heuresPrevues += duree;
+      t.montantPrevu += montant;
+      if (taux == null) t.sansTaux += 1;
+    }
+  }
+
+  const empParId = new Map(employes.map((e) => [e.id, e]));
+  const formater = (id, t) => {
+    const e = empParId.get(id) || {};
+    return {
+      employeeId: id,
+      nom: e.nom,
+      prenom: e.prenom,
+      nbVacations: t.nb + t.nbPrevus,
+      totalHeures: t.heures + t.heuresPrevues,
+      totalMontant: Math.round((t.montant + t.montantPrevu) * 100) / 100,
+      nbEffectuees: t.nb,
+      heuresEffectuees: t.heures,
+      montantEffectue: t.montant,
+      nbPrevues: t.nbPrevus,
+      heuresPrevues: t.heuresPrevues,
+      montantPrevu: Math.round(t.montantPrevu * 100) / 100,
+      sansTaux: t.sansTaux
+    };
+  };
+
+  // Recap par salarie : tous les salaries actifs, plus les inactifs qui ont
+  // quand meme de l'activite ce mois-ci.
+  const parEmploye = employes
+    .filter((e) => e.actif || parEmp.has(e.id))
+    .map((e) => formater(e.id, parEmp.get(e.id) || vide()));
+
+  const parSite = Array.from(parSiteEmp.entries())
+    .map(([siteId, s]) => {
+      const lignes = Array.from(s.emp.entries())
+        .map(([id, t]) => formater(id, t))
+        .sort((a, b) => `${a.nom} ${a.prenom}`.localeCompare(`${b.nom} ${b.prenom}`));
+      const somme = (champ) => lignes.reduce((acc, l) => acc + l[champ], 0);
+      return {
+        siteId,
+        nom: s.nom,
+        totalHeures: somme('totalHeures'),
+        totalMontant: Math.round(somme('totalMontant') * 100) / 100,
+        heuresPrevues: somme('heuresPrevues'),
+        montantPrevu: Math.round(somme('montantPrevu') * 100) / 100,
+        parEmploye: lignes
+      };
+    })
+    .sort((a, b) => a.nom.localeCompare(b.nom));
+
+  const totalGeneral = parEmploye.reduce(
     (acc, r) => {
-      acc.heures += Number(r.total_heures);
-      acc.montant += Number(r.total_montant);
+      acc.heures += r.totalHeures;
+      acc.montant += r.totalMontant;
+      acc.heuresPrevues += r.heuresPrevues;
+      acc.montantPrevu += r.montantPrevu;
       return acc;
     },
-    { heures: 0, montant: 0 }
+    { heures: 0, montant: 0, heuresPrevues: 0, montantPrevu: 0 }
   );
-
-  // Detail par site : pour chaque site travaille ce mois-ci, qui y a
-  // travaille et combien d'heures chacun. On ne remonte que les sites ayant
-  // au moins une vacation dans le mois (INNER JOIN sur shifts).
-  const { rows: rowsSite } = await sql`
-    SELECT st.id AS site_id, st.nom AS site_nom,
-           e.id AS employee_id, e.nom, e.prenom,
-           SUM(s.duree_heures) AS total_heures,
-           SUM(s.montant) AS total_montant
-    FROM shifts s
-    JOIN sites st ON st.id = s.site_id
-    JOIN employees e ON e.id = s.employee_id
-    WHERE to_char(s.shift_date, 'YYYY-MM') = ${mois}
-    GROUP BY st.id, st.nom, e.id, e.nom, e.prenom
-    ORDER BY st.nom, e.nom, e.prenom;
-  `;
-
-  const sitesParId = new Map();
-  for (const r of rowsSite) {
-    if (!sitesParId.has(r.site_id)) {
-      sitesParId.set(r.site_id, {
-        siteId: r.site_id,
-        nom: r.site_nom,
-        totalHeures: 0,
-        totalMontant: 0,
-        parEmploye: []
-      });
-    }
-    const site = sitesParId.get(r.site_id);
-    const heures = Number(r.total_heures);
-    const montant = Number(r.total_montant);
-    site.totalHeures += heures;
-    site.totalMontant += montant;
-    site.parEmploye.push({
-      employeeId: r.employee_id,
-      nom: r.nom,
-      prenom: r.prenom,
-      totalHeures: heures,
-      totalMontant: montant
-    });
-  }
-  const parSite = Array.from(sitesParId.values()).sort((a, b) => a.nom.localeCompare(b.nom));
 
   return NextResponse.json({
     mois,
-    parEmploye: rows.map((r) => ({
-      employeeId: r.employee_id,
-      nom: r.nom,
-      prenom: r.prenom,
-      totalHeures: Number(r.total_heures),
-      totalMontant: Number(r.total_montant),
-      nbVacations: Number(r.nb_vacations)
-    })),
+    parEmploye,
     parSite,
-    totalGeneral
+    totalGeneral,
+    nbSalariesActifs: employes.filter((e) => e.actif).length
   });
 }
