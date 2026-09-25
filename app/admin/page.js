@@ -580,6 +580,42 @@ export default function AdminPage() {
     });
     chargerTout();
   }
+  const [editionPoste, setEditionPoste] = useState(null);
+  const [posteNomEdit, setPosteNomEdit] = useState('');
+  const [posteTauxEdit, setPosteTauxEdit] = useState('');
+  const [modifPosteEnCours, setModifPosteEnCours] = useState(false);
+  const [erreurModifPoste, setErreurModifPoste] = useState('');
+  function ouvrirModifPoste(p) {
+    setEditionPoste(p.id);
+    setPosteNomEdit(p.nom);
+    setPosteTauxEdit(String(Number(p.taux_horaire)));
+    setErreurModifPoste('');
+  }
+  function annulerModifPoste() {
+    setEditionPoste(null);
+    setErreurModifPoste('');
+  }
+  async function enregistrerModifPoste(e, id) {
+    e.preventDefault();
+    setModifPosteEnCours(true);
+    setErreurModifPoste('');
+    try {
+      const res = await fetch(`/api/admin/postes/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom: posteNomEdit, taux_horaire: posteTauxEdit })
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setErreurModifPoste(data.erreur || 'Modification impossible.');
+        return;
+      }
+      setEditionPoste(null);
+      chargerTout();
+    } finally {
+      setModifPosteEnCours(false);
+    }
+  }
   async function supprimerPoste(id, nom) {
     if (!window.confirm(`Supprimer le poste "${nom}" ?\n\nLes vacations deja enregistrees avec ce poste sont conservees.`)) return;
     const res = await fetch(`/api/admin/postes/${id}`, { method: 'DELETE' });
@@ -1514,7 +1550,7 @@ export default function AdminPage() {
 
             <div style={{ marginTop: 22 }} className="list">
               {postes.map((p) => (
-                <div className="list-row" key={p.id}>
+                <div className="list-row" key={p.id} style={{ flexWrap: 'wrap' }}>
                   <div className="list-row-main">
                     <div className="list-row-title">{p.nom}</div>
                     <div className="list-row-sub">
@@ -1522,6 +1558,12 @@ export default function AdminPage() {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => (editionPoste === p.id ? annulerModifPoste() : ouvrirModifPoste(p))}
+                    >
+                      {editionPoste === p.id ? 'Annuler' : 'Modifier'}
+                    </button>
                     <button
                       className="btn btn-secondary btn-sm"
                       onClick={() => togglePosteActif(p.id, !p.actif)}
@@ -1532,6 +1574,55 @@ export default function AdminPage() {
                       Supprimer
                     </button>
                   </div>
+
+                  {editionPoste === p.id && (
+                    <form
+                      onSubmit={(e) => enregistrerModifPoste(e, p.id)}
+                      style={{
+                        width: '100%',
+                        marginTop: 10,
+                        paddingTop: 10,
+                        borderTop: '1px solid var(--border)',
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                        gap: 12,
+                        flexWrap: 'wrap'
+                      }}
+                    >
+                      <div className="field" style={{ marginBottom: 0, flex: '1 1 220px' }}>
+                        <label>Nom du poste</label>
+                        <input
+                          type="text"
+                          value={posteNomEdit}
+                          onChange={(e) => setPosteNomEdit(e.target.value)}
+                          required
+                          autoFocus
+                        />
+                      </div>
+                      <div className="field" style={{ marginBottom: 0, flex: '0 1 180px' }}>
+                        <label>Taux horaire (EUR)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={posteTauxEdit}
+                          onChange={(e) => setPosteTauxEdit(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <button className="btn btn-primary btn-sm" type="submit" disabled={modifPosteEnCours}>
+                        {modifPosteEnCours ? 'Enregistrement...' : 'Enregistrer'}
+                      </button>
+                      <div className="list-row-sub" style={{ width: '100%' }}>
+                        Le nouveau taux s&apos;applique aux prochaines vacations ; celles deja enregistrees gardent leur montant.
+                      </div>
+                      {erreurModifPoste && (
+                        <div className="alert alert-error" style={{ margin: 0, padding: '6px 10px' }}>
+                          {erreurModifPoste}
+                        </div>
+                      )}
+                    </form>
+                  )}
                 </div>
               ))}
             </div>
