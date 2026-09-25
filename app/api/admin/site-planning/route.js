@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { randomUUID } from 'crypto';
 import { sql, ensureSchema } from '@/lib/db';
 import { requireAdminSession } from '@/lib/auth';
 import { ajouterJours, jourSemaine, decouper } from '@/lib/planningSite';
@@ -25,6 +26,10 @@ export async function GET(request) {
     SELECT s.id, s.site_id, s.poste_id, po.nom AS poste,
            to_char(s.slot_date, 'YYYY-MM-DD') AS slot_date,
            s.heure_debut, s.heure_fin, s.note,
+           s.lot_id, to_char(s.lot_origine, 'YYYY-MM-DD') AS lot_origine,
+           (SELECT count(*)::int FROM site_slots x
+             WHERE x.lot_id = s.lot_id AND x.lot_origine = s.lot_origine) AS nb_vacation,
+           (SELECT count(*)::int FROM site_slots x WHERE x.lot_id = s.lot_id) AS nb_lot,
            pe.id AS planning_id, pe.employee_id, e.nom, e.prenom
     FROM site_slots s
     LEFT JOIN postes po ON po.id = s.poste_id
@@ -73,7 +78,7 @@ export async function POST(request) {
   for (let d = b.dateDebut; d <= b.dateFin; d = ajouterJours(d, 1)) {
     if (!jours.includes(jourSemaine(d))) continue;
     for (const t of decouper(d, b.heureDebut, b.heureFin, decoupage)) {
-      for (let i = 0; i < nbAgents; i += 1) aCreer.push(t);
+      for (let i = 0; i < nbAgents; i += 1) aCreer.push({ ...t, origine: d });
     }
     if (aCreer.length > 1000) break;
   }
@@ -90,10 +95,49 @@ export async function POST(request) {
   // Insertion en une seule requete (json_to_recordset) : rapide meme pour
   // plusieurs centaines de creneaux.
   await sql`
-    INSERT INTO site_slots (site_id, poste_id, slot_date, heure_debut, heure_fin, note)
-    SELECT ${siteId}, ${posteId}, t.d::date, t.hd, t.hf, ${note}
-    FROM json_to_recordset(${JSON.stringify(aCreer.map((t) => ({ d: t.date, hd: t.heureDebut, hf: t.heureFin })))}::json)
-      AS t(d text, hd text, hf text);
+    INSERT INTO site_slots (site_id, poste_id, slot_date, heure_debut, heure_fin, note, lot_id, lot_origine)
+    SELECT ${siteId}, ${posteId}, t.d::date, t.hd, t.hf, ${note}, ${randomUUID()}, t.o::date
+    FROM json_to_recordset(${JSON.stringify(
+      aCreer.map((t) => ({ d: t.date, hd: t.heureDebut, hf: t.heureFin, o: t.origine }))
+    )}::json)
+      AS t(d text, hd text, hf text, o text);
   `;
   return NextResponse.json({ ok: true, crees: aCreer.length });
+}
+
+// DELETE /api/admin/site-planning   (suppression groupee)
+// body, au choix :
+//   { ids: [1, 2, ...] }                  creneaux selectionnes
+//   { siteId, date: 'YYYY-MM-DD' }        tous les creneaux d'une journee
+//   { lotId, origine?: 'YYYY-MM-DD' }     toute la vacation (ce jour-la) ou
+//                                         toute la serie creee en une fois
+// Les creneaux deja attribues sont aussi retires du planning des agents
+// (ON DELETE CASCADE sur planning_entries.site_slot_id).
+export async function DELETE(request) {
+  const session = await requireAdminSession();
+  if (!session) return NextResponse.json({ erreur: 'Acces refuse.' }, { status: 403 });
+  await ensureSchema();
+  const b = await request.json().catch(() => ({}));
+
+  let rows;
+  if (Array.isArray(b.ids) && b.ids.length > 0) {
+    const ids = b.ids.map(Number).filter(Boolean);
+    ({ rows } = await sql`
+      DELETE FROM site_slots WHERE id IN (SELECT (json_array_elements_text(${JSON.stringify(ids)}::json))::int)
+      RETURNING id;
+    `);
+  } else if (b.siteId && DATE_RE.test(b.date || '')) {
+    ({ rows } = await sql`
+      DELETE FROM site_slots WHERE site_id = ${Number(b.siteId)} AND slot_date = ${b.date} RETURNING id;
+    `);
+  } else if (b.lotId && b.origine && DATE_RE.test(b.origine)) {
+    ({ rows } = await sql`
+      DELETE FROM site_slots WHERE lot_id = ${String(b.lotId)} AND lot_origine = ${b.origine} RETURNING id;
+    `);
+  } else if (b.lotId) {
+    ({ rows } = await sql`DELETE FROM site_slots WHERE lot_id = ${String(b.lotId)} RETURNING id;`);
+  } else {
+    return NextResponse.json({ erreur: 'Rien a supprimer.' }, { status: 400 });
+  }
+  return NextResponse.json({ ok: true, supprimes: rows.length });
 }

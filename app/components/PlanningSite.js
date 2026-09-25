@@ -98,6 +98,9 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
   const [creation, setCreation] = useState(false);
   const [message, setMessage] = useState(null);
   const [enCours, setEnCours] = useState(null); // id du creneau en cours de mise a jour
+  const [modeSelection, setModeSelection] = useState(false);
+  const [selection, setSelection] = useState(() => new Set());
+  const [menuSuppr, setMenuSuppr] = useState(null); // id du creneau dont le menu "supprimer" est ouvert
 
   // Quand on change de mois avec les fleches du haut, on se place sur la
   // premiere semaine de ce mois (ou la semaine en cours si c'est ce mois-ci).
@@ -216,14 +219,91 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
     }
   }
 
-  async function supprimer(creneau) {
-    const txt = creneau.employee_id
-      ? `Supprimer ce creneau ? Il sera aussi retire du planning de ${nomAgent(creneau)}.`
-      : 'Supprimer ce creneau a pourvoir ?';
-    if (!window.confirm(txt)) return;
-    await fetch(`/api/admin/site-planning/${creneau.id}`, { method: 'DELETE' });
+  // Suppression groupee (voir DELETE /api/admin/site-planning).
+  // `nbAttribues` sert uniquement a prevenir que des agents perdront ces
+  // creneaux dans leur planning.
+  async function supprimerGroupe(corps, libelle, nbAttribues = 0) {
+    const avertissement = nbAttribues
+      ? `\n\nAttention : ${nbAttribues} creneau(x) deja attribue(s) seront aussi retires du planning des agents.`
+      : '';
+    if (!window.confirm(`Supprimer ${libelle} ?${avertissement}`)) return;
+    const res = await fetch('/api/admin/site-planning', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(corps)
+    });
+    const data = await res.json().catch(() => ({}));
+    setMenuSuppr(null);
+    setSelection(new Set());
+    if (res.ok) setMessage({ type: 'success', texte: `${data.supprimes} creneau(x) supprime(s).` });
+    else setMessage({ type: 'error', texte: data.erreur || 'Suppression impossible.' });
     await charger();
-    if (creneau.employee_id) onChange?.();
+    onChange?.();
+  }
+
+  function supprimerCreneau(c) {
+    supprimerGroupe({ ids: [c.id] }, `le creneau ${c.heure_debut}-${c.heure_fin}`, c.employee_id ? 1 : 0);
+  }
+
+  function supprimerVacation(c) {
+    const attribues = creneaux.filter(
+      (x) => x.lot_id === c.lot_id && x.lot_origine === c.lot_origine && x.employee_id
+    ).length;
+    supprimerGroupe(
+      { lotId: c.lot_id, origine: c.lot_origine },
+      `toute la vacation du ${libelleJour(c.lot_origine)} (${c.nb_vacation} creneau(x))`,
+      attribues
+    );
+  }
+
+  function supprimerSerie(c) {
+    supprimerGroupe(
+      { lotId: c.lot_id },
+      `toute la serie creee en une fois (${c.nb_lot} creneau(x), toutes dates confondues)`,
+      creneaux.filter((x) => x.lot_id === c.lot_id && x.employee_id).length
+    );
+  }
+
+  function supprimerJour(date) {
+    const liste = parJour[date] || [];
+    if (liste.length === 0) return;
+    supprimerGroupe(
+      { siteId, date },
+      `les ${liste.length} creneau(x) du ${libelleJour(date)}`,
+      liste.filter((x) => x.employee_id).length
+    );
+  }
+
+  function supprimerSelection() {
+    const ids = [...selection];
+    if (ids.length === 0) return;
+    supprimerGroupe(
+      { ids },
+      `les ${ids.length} creneau(x) selectionne(s)`,
+      creneaux.filter((x) => selection.has(x.id) && x.employee_id).length
+    );
+  }
+
+  function basculerSelection(id) {
+    setSelection((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+
+  function selectionnerListe(liste, cocher) {
+    setSelection((s) => {
+      const n = new Set(s);
+      liste.forEach((c) => (cocher ? n.add(c.id) : n.delete(c.id)));
+      return n;
+    });
+  }
+
+  function quitterSelection() {
+    setModeSelection(false);
+    setSelection(new Set());
   }
 
   const nomSite = sitesActifs.find((s) => String(s.id) === String(siteId))?.nom || '';
@@ -391,6 +471,51 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
       </div>
 
       <div className="card">
+        <div className="ps-barre">
+          {!modeSelection ? (
+            <button
+              className="btn btn-secondary btn-sm"
+              type="button"
+              disabled={creneaux.length === 0}
+              onClick={() => {
+                setMenuSuppr(null);
+                setModeSelection(true);
+              }}
+            >
+              Selectionner des creneaux
+            </button>
+          ) : (
+            <>
+              <span className="small" style={{ fontWeight: 600 }}>
+                {selection.size} selectionne(s)
+              </span>
+              <button className="btn btn-secondary btn-sm" type="button" onClick={() => selectionnerListe(creneaux, true)}>
+                Toute la semaine
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                type="button"
+                onClick={() => selectionnerListe(creneaux.filter((c) => !c.employee_id), true)}
+              >
+                Tous les &laquo; a pourvoir &raquo;
+              </button>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={() => setSelection(new Set())}>
+                Rien
+              </button>
+              <button
+                className="btn btn-danger btn-sm"
+                type="button"
+                disabled={selection.size === 0}
+                onClick={supprimerSelection}
+              >
+                Supprimer la selection
+              </button>
+              <button className="btn btn-ghost btn-sm" type="button" onClick={quitterSelection}>
+                Terminer
+              </button>
+            </>
+          )}
+        </div>
         {chargement && creneaux.length === 0 ? (
           <div className="empty-state">Chargement...</div>
         ) : (
@@ -399,27 +524,80 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
               const liste = parJour[j.date] || [];
               return (
                 <div className={`ps-jour ${j.date === aujourdhui() ? 'ps-jour-auj' : ''}`} key={j.date}>
-                  <div className="ps-jour-titre">{libelleJour(j.date)}</div>
+                  <div className="ps-jour-titre">
+                    {modeSelection && liste.length > 0 && (
+                      <input
+                        type="checkbox"
+                        title="Selectionner toute la journee"
+                        checked={liste.every((c) => selection.has(c.id))}
+                        onChange={(e) => selectionnerListe(liste, e.target.checked)}
+                      />
+                    )}
+                    <span>{libelleJour(j.date)}</span>
+                    {!modeSelection && liste.length > 0 && (
+                      <button
+                        className="ps-suppr-jour"
+                        type="button"
+                        title="Supprimer tous les creneaux de cette journee"
+                        onClick={() => supprimerJour(j.date)}
+                      >
+                        Vider
+                      </button>
+                    )}
+                  </div>
                   {liste.length === 0 && <div className="ps-vide">&mdash;</div>}
                   {liste.map((c) => (
                     <div
                       key={c.id}
-                      className={`ps-creneau ${c.employee_id ? '' : 'ps-libre'}`}
+                      className={`ps-creneau ${c.employee_id ? '' : 'ps-libre'} ${
+                        selection.has(c.id) ? 'ps-selectionne' : ''
+                      }`}
                       style={c.employee_id ? { borderLeftColor: couleurAgent(c.employee_id) } : undefined}
+                      onClick={modeSelection ? () => basculerSelection(c.id) : undefined}
                     >
                       <div className="ps-creneau-tete">
+                        {modeSelection && (
+                          <input
+                            type="checkbox"
+                            checked={selection.has(c.id)}
+                            onChange={() => basculerSelection(c.id)}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        )}
                         <span className="ps-heure">
                           {c.heure_debut}&ndash;{c.heure_fin}
                         </span>
-                        <button
-                          className="ps-suppr"
-                          type="button"
-                          title="Supprimer ce creneau"
-                          onClick={() => supprimer(c)}
-                        >
-                          &times;
-                        </button>
+                        {!modeSelection && (
+                          <button
+                            className="ps-suppr"
+                            type="button"
+                            title="Supprimer..."
+                            onClick={() => setMenuSuppr((m) => (m === c.id ? null : c.id))}
+                          >
+                            &times;
+                          </button>
+                        )}
                       </div>
+                      {menuSuppr === c.id && (
+                        <div className="ps-menu">
+                          <button type="button" onClick={() => supprimerCreneau(c)}>
+                            Ce creneau
+                          </button>
+                          {c.lot_id && c.nb_vacation > 1 && (
+                            <button type="button" onClick={() => supprimerVacation(c)}>
+                              Toute la vacation ({c.nb_vacation})
+                            </button>
+                          )}
+                          {c.lot_id && c.nb_lot > c.nb_vacation && (
+                            <button type="button" onClick={() => supprimerSerie(c)}>
+                              Toute la serie ({c.nb_lot})
+                            </button>
+                          )}
+                          <button type="button" className="ps-menu-annuler" onClick={() => setMenuSuppr(null)}>
+                            Annuler
+                          </button>
+                        </div>
+                      )}
                       {(c.poste || c.note) && (
                         <div className="ps-info">{[c.poste, c.note].filter(Boolean).join(' · ')}</div>
                       )}
@@ -433,7 +611,7 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
                       <select
                         title={c.employee_id ? "Changer d'agent" : 'Choisir un agent'}
                         value={c.employee_id ? String(c.employee_id) : ''}
-                        disabled={enCours === c.id}
+                        disabled={enCours === c.id || modeSelection}
                         onChange={(e) => attribuer(c, e.target.value)}
                       >
                         <option value="">{c.employee_id ? "Retirer l'agent" : 'Choisir un agent...'}</option>
