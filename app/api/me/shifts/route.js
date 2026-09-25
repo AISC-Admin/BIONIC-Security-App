@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureSchema, calculerDureeHeures } from '@/lib/db';
 import { requireEmployeeSession } from '@/lib/auth';
+import { resynchroniserMontants } from '@/lib/vacations';
 
 // GET /api/me/shifts?mois=YYYY-MM  (par defaut : mois en cours)
 export async function GET(request) {
@@ -9,6 +10,7 @@ export async function GET(request) {
     return NextResponse.json({ erreur: 'Non connecte.' }, { status: 401 });
   }
   await ensureSchema();
+  await resynchroniserMontants();
 
   const { searchParams } = new URL(request.url);
   const mois = searchParams.get('mois') || new Date().toISOString().slice(0, 7);
@@ -54,12 +56,7 @@ export async function POST(request) {
     );
   }
 
-  // Le taux personnel du salarie (s'il est renseigne dans sa fiche) prime
-  // sur celui du poste, pour toutes les vacations de cette saisie.
-  const { rows: employeRows } = await sql`
-    SELECT taux_horaire FROM employees WHERE id = ${session.employeeId} LIMIT 1;
-  `;
-  const tauxPersonnel = employeRows[0]?.taux_horaire != null ? Number(employeRows[0].taux_horaire) : null;
+  // Le taux horaire vient toujours du poste choisi.
 
   const crees = [];
   for (const entree of entries) {
@@ -80,7 +77,7 @@ export async function POST(request) {
     if (posteRows.length === 0) {
       return NextResponse.json({ erreur: 'Poste invalide.', code: 'invalid_poste' }, { status: 400 });
     }
-    const tauxHoraire = tauxPersonnel != null ? tauxPersonnel : Number(posteRows[0].taux_horaire);
+    const tauxHoraire = Number(posteRows[0].taux_horaire);
     const dureeHeures = calculerDureeHeures(heure_debut, heure_fin);
     const montant = Math.round(dureeHeures * tauxHoraire * 100) / 100;
 

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureSchema, calculerDureeHeures } from '@/lib/db';
 import { requireAdminSession } from '@/lib/auth';
+import { resynchroniserMontants } from '@/lib/vacations';
 
 // GET /api/admin/summary?mois=YYYY-MM
 // Totaux du mois par salarie et par site. Deux sources sont additionnees :
@@ -8,7 +9,7 @@ import { requireAdminSession } from '@/lib/auth';
 //   creneaux deja marques comme effectues) -> "effectue" ;
 // - les creneaux du planning (planning agents + planning site attribue)
 //   pas encore transformes en vacation -> "prevu". Leur montant est estime
-//   avec le taux personnel du salarie, sinon celui du poste.
+//   avec le taux actuel du poste.
 // Un creneau deja effectue n'est compte qu'une fois (via sa vacation).
 export async function GET(request) {
   const session = await requireAdminSession();
@@ -17,6 +18,7 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const mois = searchParams.get('mois') || new Date().toISOString().slice(0, 7);
+  await resynchroniserMontants();
 
   const [{ rows: employes }, { rows: effectues }, { rows: prevus }] = await Promise.all([
     sql`
@@ -35,7 +37,7 @@ export async function GET(request) {
     sql`
       SELECT p.employee_id, p.site_id, st.nom AS site_nom,
              p.heure_debut, p.heure_fin,
-             e.taux_horaire AS taux_perso, po.taux_horaire AS taux_poste
+             po.taux_horaire AS taux_poste
       FROM planning_entries p
       JOIN sites st ON st.id = p.site_id
       JOIN employees e ON e.id = p.employee_id
@@ -67,7 +69,7 @@ export async function GET(request) {
 
   for (const r of prevus) {
     const duree = calculerDureeHeures(r.heure_debut, r.heure_fin);
-    const taux = r.taux_perso != null ? Number(r.taux_perso) : r.taux_poste != null ? Number(r.taux_poste) : null;
+    const taux = r.taux_poste != null ? Number(r.taux_poste) : null;
     const montant = taux != null ? Math.round(duree * taux * 100) / 100 : 0;
     for (const t of cellule(r.employee_id, r.site_id, r.site_nom)) {
       t.nbPrevus += 1;

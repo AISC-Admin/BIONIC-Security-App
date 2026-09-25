@@ -19,9 +19,9 @@ export async function PATCH(request, { params }) {
   const { id } = await params;
   const body = await request.json();
 
-  if (body.heure_debut !== undefined || body.heure_fin !== undefined) {
+  if (body.heure_debut !== undefined || body.heure_fin !== undefined || body.poste_id !== undefined) {
     const { rows } = await sql`
-      SELECT heure_debut, heure_fin, taux_horaire FROM shifts WHERE id = ${id} LIMIT 1;
+      SELECT heure_debut, heure_fin, poste_id FROM shifts WHERE id = ${id} LIMIT 1;
     `;
     if (rows.length === 0) {
       return NextResponse.json({ erreur: 'Vacation introuvable.' }, { status: 404 });
@@ -33,14 +33,22 @@ export async function PATCH(request, { params }) {
       return NextResponse.json({ erreur: 'Heures invalides (format HH:MM attendu).' }, { status: 400 });
     }
 
+    // Le taux vient toujours du poste (eventuellement change ici).
+    const posteId = body.poste_id ? Number(body.poste_id) : Number(existant.poste_id);
+    const { rows: postes } = await sql`SELECT taux_horaire FROM postes WHERE id = ${posteId} LIMIT 1;`;
+    if (!postes[0]) return NextResponse.json({ erreur: 'Poste introuvable.' }, { status: 400 });
+    const taux = Number(postes[0].taux_horaire);
+
     const dureeHeures = calculerDureeHeures(heureDebut, heureFin);
-    const montant = Math.round(dureeHeures * Number(existant.taux_horaire) * 100) / 100;
+    const montant = Math.round(dureeHeures * taux * 100) / 100;
 
     await sql`
       UPDATE shifts
       SET heure_debut = ${heureDebut},
           heure_fin = ${heureFin},
+          poste_id = ${posteId},
           duree_heures = ${dureeHeures},
+          taux_horaire = ${taux},
           montant = ${montant},
           modifie_par_manager = true,
           modifie_le = now()

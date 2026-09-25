@@ -173,6 +173,7 @@ export default function AdminPage() {
   const [editionVacation, setEditionVacation] = useState(null);
   const [heureDebutEdit, setHeureDebutEdit] = useState('');
   const [heureFinEdit, setHeureFinEdit] = useState('');
+  const [posteEdit, setPosteEdit] = useState('');
   const [modifVacationEnCours, setModifVacationEnCours] = useState(false);
   const [erreurModifVacation, setErreurModifVacation] = useState('');
 
@@ -180,6 +181,7 @@ export default function AdminPage() {
     setEditionVacation(v.id);
     setHeureDebutEdit(v.heure_debut);
     setHeureFinEdit(v.heure_fin);
+    setPosteEdit(v.poste_id ? String(v.poste_id) : '');
     setErreurModifVacation('');
   }
 
@@ -195,7 +197,7 @@ export default function AdminPage() {
       const res = await fetch(`/api/admin/shifts/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ heure_debut: heureDebutEdit, heure_fin: heureFinEdit })
+        body: JSON.stringify({ heure_debut: heureDebutEdit, heure_fin: heureFinEdit, poste_id: posteEdit || undefined })
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -889,7 +891,7 @@ export default function AdminPage() {
               <div className="card-title">Recap par salarie</div>
               <div className="small muted" style={{ marginBottom: 10 }}>
                 Vacations effectuees + creneaux prevus au planning (planning agents et planning site) pas encore
-                effectues. Le montant prevu est estime avec le taux du salarie ou, a defaut, celui du poste.
+                effectues. Les montants sont calcules avec le taux actuel du poste.
               </div>
               <div className="table-wrap">
                 <table>
@@ -922,7 +924,7 @@ export default function AdminPage() {
                           )}
                           {e.sansTaux > 0 && (
                             <div className="small" style={{ color: 'var(--danger)' }}>
-                              {e.sansTaux} creneau(x) sans poste ni taux : montant non compte
+                              {e.sansTaux} creneau(x) sans poste : montant non compte
                             </div>
                           )}
                         </td>
@@ -1069,6 +1071,19 @@ export default function AdminPage() {
                             <label>Fin</label>
                             <input type="time" value={heureFinEdit} onChange={(e) => setHeureFinEdit(e.target.value)} />
                           </div>
+                          <div className="field" style={{ marginBottom: 0 }}>
+                            <label>Poste</label>
+                            <select value={posteEdit} onChange={(e) => setPosteEdit(e.target.value)}>
+                              {postes.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.nom} ({formatEuros(p.taux_horaire)}/h)
+                                </option>
+                              ))}
+                              {posteEdit && !postes.some((p) => String(p.id) === posteEdit) && (
+                                <option value={posteEdit}>{v.poste}</option>
+                              )}
+                            </select>
+                          </div>
                           <button
                             className="btn btn-primary btn-sm"
                             disabled={modifVacationEnCours}
@@ -1111,7 +1126,7 @@ export default function AdminPage() {
                   <input type="text" value={nouvCode} onChange={(e) => setNouvCode(e.target.value)} required />
                 </div>
                 <div className="field">
-                  <label>Taux horaire perso (optionnel)</label>
+                  <label>Taux horaire perso (information, non utilise pour le calcul)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -1669,7 +1684,7 @@ export default function AdminPage() {
                         {modifPosteEnCours ? 'Enregistrement...' : 'Enregistrer'}
                       </button>
                       <div className="list-row-sub" style={{ width: '100%' }}>
-                        Le nouveau taux s&apos;applique aux prochaines vacations ; celles deja enregistrees gardent leur montant.
+                        Le nouveau taux s&apos;applique a toutes les vacations de ce poste, y compris celles deja enregistrees.
                       </div>
                       {erreurModifPoste && (
                         <div className="alert alert-error" style={{ margin: 0, padding: '6px 10px' }}>

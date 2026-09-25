@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
 import { requireEmployeeSession } from '@/lib/auth';
+import { resynchroniserMontants } from '@/lib/vacations';
 
 // GET /api/me/earnings?mois=YYYY-MM
 // Estimation en temps reel : recalculee a partir des vacations enregistrees,
@@ -11,6 +12,7 @@ export async function GET(request) {
     return NextResponse.json({ erreur: 'Non connecte.' }, { status: 401 });
   }
   await ensureSchema();
+  await resynchroniserMontants();
 
   const { searchParams } = new URL(request.url);
   const mois = searchParams.get('mois') || new Date().toISOString().slice(0, 7);

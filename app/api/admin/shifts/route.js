@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
 import { requireAdminSession } from '@/lib/auth';
+import { resynchroniserMontants } from '@/lib/vacations';
 
 // GET /api/admin/shifts?mois=YYYY-MM&employee_id=&site_id=
 export async function GET(request) {
@@ -12,11 +13,12 @@ export async function GET(request) {
   const mois = searchParams.get('mois') || new Date().toISOString().slice(0, 7);
   const employeeId = searchParams.get('employee_id');
   const siteId = searchParams.get('site_id');
+  await resynchroniserMontants();
 
   const { rows } = await sql`
     SELECT s.id, s.employee_id, e.nom, e.prenom, s.shift_date, s.heure_debut, s.heure_fin,
            s.duree_heures, s.taux_horaire, s.montant, s.valide, s.modifie_par_manager,
-           st.nom AS site, po.nom AS poste
+           s.poste_id, st.nom AS site, po.nom AS poste
     FROM shifts s
     JOIN employees e ON e.id = s.employee_id
     JOIN sites st ON st.id = s.site_id

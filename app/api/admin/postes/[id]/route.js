@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
 import { requireAdminSession } from '@/lib/auth';
+import { resynchroniserMontants } from '@/lib/vacations';
 
 export async function PATCH(request, { params }) {
   const session = await requireAdminSession();
@@ -28,6 +29,8 @@ export async function PATCH(request, { params }) {
   }
   if (taux_horaire !== undefined) {
     await sql`UPDATE postes SET taux_horaire = ${Number(taux_horaire)} WHERE id = ${id};`;
+    // Toutes les vacations de ce poste passent au nouveau taux.
+    await resynchroniserMontants({ posteId: Number(id) });
   }
   if (actif !== undefined) await sql`UPDATE postes SET actif = ${actif} WHERE id = ${id};`;
 

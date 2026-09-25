@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { sql, ensureSchema } from '@/lib/db';
 import { requireAdminSession } from '@/lib/auth';
 import { intervalle, ajouterJours } from '@/lib/planningSite';
+import { calculerDureeHeures } from '@/lib/db';
+import { resynchroniserMontants } from '@/lib/vacations';
 
 // PATCH /api/admin/site-planning/[id]  body: { employeeId | null, forcer? }
 // Attribue le creneau a un agent (= cree le creneau dans SON planning) ou le
@@ -148,8 +150,25 @@ async function modifierCreneau(slot, m, forcer) {
       SET poste_id = ${posteId}, heure_debut = ${heureDebut}, heure_fin = ${heureFin}, note = ${note}
       WHERE id = ${entree.id};
     `;
+    // Creneau deja effectue : la vacation suit (horaires, poste, taux, montant).
     const { rows: vacs } = await sql`SELECT id FROM shifts WHERE planning_entry_id = ${entree.id} LIMIT 1;`;
-    dejaEffectue = Boolean(vacs[0]);
+    if (vacs[0]) {
+      dejaEffectue = true;
+      const duree = calculerDureeHeures(heureDebut, heureFin);
+      if (posteId) {
+        await sql`
+          UPDATE shifts SET poste_id = ${posteId}, heure_debut = ${heureDebut}, heure_fin = ${heureFin},
+                 duree_heures = ${duree}
+          WHERE id = ${vacs[0].id};
+        `;
+      } else {
+        await sql`
+          UPDATE shifts SET heure_debut = ${heureDebut}, heure_fin = ${heureFin}, duree_heures = ${duree}
+          WHERE id = ${vacs[0].id};
+        `;
+      }
+      await resynchroniserMontants({ shiftId: vacs[0].id });
+    }
   }
   return NextResponse.json({ ok: true, dejaEffectue });
 }

@@ -264,7 +264,7 @@ export function PlanningSite({ sites = [], postes = [], employees = [], mois, on
           ? {
               type: 'success',
               texte:
-                "Creneau modifie. Attention : il etait deja marque comme effectue, la vacation deja enregistree n'a pas change (a corriger dans l'onglet Vacations si besoin)."
+                'Creneau modifie. Il etait deja effectue : la vacation correspondante a ete mise a jour elle aussi.'
             }
           : { type: 'success', texte: 'Creneau modifie.' }
       );
