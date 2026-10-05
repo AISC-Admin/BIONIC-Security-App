@@ -231,6 +231,7 @@ export default function BaseClients({ postes = [], onSitesModifies }) {
 
   const sitesSansClient = sites.filter((s) => !s.client_id);
   const postesActifs = postes.filter((p) => p.actif !== false);
+  const societesActives = societes.filter((x) => x.actif !== false);
 
   return (
     <>
@@ -305,12 +306,18 @@ export default function BaseClients({ postes = [], onSitesModifies }) {
             <div className="field">
               <label>Societe qui facture par defaut</label>
               <select value={form.societe_id ?? ''} onChange={(e) => maj('societe_id', e.target.value)}>
-                <option value="">{societes[0] ? `${societes[0].nom} (defaut)` : 'Societe par defaut'}</option>
-                {societes.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.nom}
-                  </option>
-                ))}
+                {/* Valeur vide = societe par defaut (la premiere active, BIONIC
+                    Stratom SAS) ; puis les autres societes actives. */}
+                <option value="">
+                  {societesActives[0] ? `${societesActives[0].nom} (par defaut)` : 'Societe par defaut'}
+                </option>
+                {societes
+                  .filter((x, i) => (x.actif && x.id !== societesActives[0]?.id) || String(x.id) === String(form.societe_id ?? ''))
+                  .map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.nom}
+                    </option>
+                  ))}
               </select>
             </div>
             <div className="field" style={{ display: 'flex', alignItems: 'flex-end' }}>

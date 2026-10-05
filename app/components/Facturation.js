@@ -6,7 +6,7 @@ import { Fragment, useEffect, useState, useCallback } from 'react';
 // peut avoir plusieurs sites, chacun facture separement). Seules les
 // vacations VALIDEES par le manager sont prises en compte. Pour chaque
 // prestation (site + poste) : heures, tarif HT, montant, et repartition des
-// heures entre les societes emettrices (BIONIC Stratom LLC, SovereignMan...).
+// heures entre les societes emettrices (BIONIC Stratom SAS, BIONIC Stratom LLC...).
 
 function formatEuros(v) {
   if (v === null || v === undefined) return '';
@@ -333,7 +333,7 @@ export default function Facturation({ mois, libelleMois }) {
 
           <form onSubmit={ajouterSociete} style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap', marginTop: 10 }}>
             <div className="field" style={{ margin: 0 }}>
-              <label>Societes emettrices : {societes.map((x) => x.nom).join(', ')}</label>
+              <label>Societes emettrices : {societes.filter((x) => x.actif !== false).map((x) => x.nom).join(', ')}</label>
               <input
                 type="text"
                 placeholder="Ajouter une societe emettrice"
