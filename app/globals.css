@@ -581,6 +581,11 @@ select:focus {
   color: var(--warning);
 }
 
+.pill-info {
+  background: #e8f0fb;
+  color: var(--blue-600);
+}
+
 .pill-danger {
   background: var(--danger-bg);
   color: var(--danger);
@@ -610,26 +615,34 @@ select:focus {
 /* --- Tabs --- */
 
 .tabs {
-  display: flex;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 4px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 4px;
-  overflow-x: auto;
+  padding: 5px;
 }
 
+/* Grille reguliere : les onglets se repartissent sur plusieurs lignes de
+   meme largeur au lieu de deborder, quel que soit le nombre d'onglets. */
 .tab {
-  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  padding: 8px 10px;
+  padding: 8px 12px;
   border-radius: 1px;
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.25;
   color: var(--text-muted);
   cursor: pointer;
-  white-space: nowrap;
   user-select: none;
+}
+
+.tab:hover {
+  color: var(--text);
 }
 
 .tab.active {
@@ -1430,4 +1443,31 @@ input[type='tel'] {
   border-radius: var(--radius);
   padding: 14px 16px;
   margin: 0 0 14px;
+}
+
+/* --- Onglets Clients / Facturation : recherche et notes --- */
+input[type='search'],
+textarea {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 11px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+input[type='email']:focus,
+input[type='tel']:focus,
+input[type='search']:focus,
+textarea:focus {
+  border-color: var(--blue-500);
 }
